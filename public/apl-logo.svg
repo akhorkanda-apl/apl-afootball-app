@@ -1,0 +1,156 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#064e3b" />
+      <stop offset="50%" stop-color="#022c22" />
+      <stop offset="100%" stop-color="#061f18" />
+    </linearGradient>
+
+    <!-- Gold Accent Gradient -->
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a" />
+      <stop offset="30%" stop-color="#f59e0b" />
+      <stop offset="70%" stop-color="#d97706" />
+      <stop offset="100%" stop-color="#b45309" />
+    </linearGradient>
+
+    <!-- Emerald Glow -->
+    <linearGradient id="emeraldGlow" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#34d399" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+
+    <filter id="dropGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.6"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="6" flood-color="#10b981" flood-opacity="0.3"/>
+    </filter>
+
+    <filter id="textGlow">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000000" flood-opacity="0.8"/>
+    </filter>
+  </defs>
+
+  <!-- Outer Glow / Shadow -->
+  <g filter="url(#dropGlow)">
+    <!-- Outer Shield Border Gold -->
+    <path d="M 256,24 L 436,80 C 436,250 376,390 256,488 C 136,390 76,250 76,80 Z"
+          fill="url(#goldGrad)" />
+
+    <!-- Inner Shield Border Emerald -->
+    <path d="M 256,36 L 424,88 C 424,242 368,374 256,470 C 144,374 88,242 88,88 Z"
+          fill="#022c22" />
+
+    <!-- Core Shield Face -->
+    <path d="M 256,48 L 410,96 C 410,234 358,358 256,450 C 154,358 102,234 102,96 Z"
+          fill="url(#shieldGrad)" />
+  </g>
+
+  <!-- Subtle Stadium Stripes inside Crest -->
+  <g opacity="0.12">
+    <path d="M 200,60 L 220,440" stroke="#ffffff" stroke-width="8" stroke-dasharray="16,8"/>
+    <path d="M 256,52 L 256,450" stroke="#ffffff" stroke-width="12"/>
+    <path d="M 312,60 L 292,440" stroke="#ffffff" stroke-width="8" stroke-dasharray="16,8"/>
+  </g>
+
+  <!-- Stars on Top Header Arc -->
+  <g fill="url(#goldGrad)">
+    <!-- Center star -->
+    <polygon points="256,76 261,90 276,90 264,99 268,113 256,104 244,113 248,99 236,90 251,90" />
+    <!-- Left star 1 -->
+    <polygon points="220,84 224,94 235,94 226,101 229,111 220,105 211,111 214,101 205,94 216,94" transform="scale(0.85) translate(45, 12)" />
+    <!-- Right star 1 -->
+    <polygon points="292,84 296,94 307,94 298,101 301,111 292,105 283,111 286,101 277,94 288,94" transform="scale(0.85) translate(38, 12)" />
+  </g>
+
+  <!-- Stylized Football in Center-Upper Crest -->
+  <g transform="translate(256, 190)">
+    <!-- Ball Base Glow -->
+    <circle r="64" fill="#f8fafc" stroke="url(#goldGrad)" stroke-width="5" />
+    
+    <!-- Soccer Ball Pentagons -->
+    <!-- Center pentagon -->
+    <polygon points="0,-22 21,-6 13,20 -13,20 -21,-6" fill="#0f172a" />
+    
+    <!-- Top-connected seam & shape -->
+    <polygon points="0,-22 -14,-46 14,-46" fill="#1e293b" opacity="0.9" />
+    <line x1="0" y1="-22" x2="0" y2="-64" stroke="#0f172a" stroke-width="4" />
+    
+    <!-- Bottom Left seam -->
+    <line x1="-13" y1="20" x2="-38" y2="48" stroke="#0f172a" stroke-width="4" />
+    <polygon points="-38,48 -54,32 -38,16" fill="#1e293b" opacity="0.8" />
+
+    <!-- Bottom Right seam -->
+    <line x1="13" y1="20" x2="38" y2="48" stroke="#0f172a" stroke-width="4" />
+    <polygon points="38,48 54,32 38,16" fill="#1e293b" opacity="0.8" />
+
+    <!-- Top Left seam -->
+    <line x1="-21" y1="-6" x2="-56" y2="-12" stroke="#0f172a" stroke-width="4" />
+    <polygon points="-56,-12 -58,-34 -40,-48" fill="#1e293b" opacity="0.8" />
+
+    <!-- Top Right seam -->
+    <line x1="21" y1="-6" x2="56" y2="-12" stroke="#0f172a" stroke-width="4" />
+    <polygon points="56,-12 58,-34 40,-48" fill="#1e293b" opacity="0.8" />
+
+    <!-- Outer Ball Rim Accent -->
+    <circle r="64" fill="none" stroke="url(#goldGrad)" stroke-width="4" />
+  </g>
+
+  <!-- Large Bold "APL" Title Typography -->
+  <text x="256" y="322" 
+        text-anchor="middle" 
+        font-family="'Outfit', 'Impact', sans-serif" 
+        font-size="82" 
+        font-weight="900" 
+        letter-spacing="6"
+        fill="url(#goldGrad)" 
+        stroke="#022c22"
+        stroke-width="4"
+        filter="url(#textGlow)">APL</text>
+
+  <!-- Golden Banner / Ribbon for Bengali Name -->
+  <g transform="translate(0, 315)">
+    <!-- Ribbon Shadow -->
+    <path d="M 80,68 L 130,48 L 130,78 Z" fill="#78350f" />
+    <path d="M 432,68 L 382,48 L 382,78 Z" fill="#78350f" />
+    
+    <!-- Ribbon Wings -->
+    <path d="M 70,78 L 136,54 L 136,92 L 70,114 Z" fill="url(#goldGrad)" />
+    <path d="M 442,78 L 376,54 L 376,92 L 442,114 Z" fill="url(#goldGrad)" />
+
+    <!-- Main Ribbon Plaque -->
+    <rect x="110" y="46" width="292" height="48" rx="8" fill="url(#goldGrad)" stroke="#78350f" stroke-width="2" />
+    <rect x="114" y="50" width="284" height="40" rx="6" fill="#042f24" stroke="url(#goldGrad)" stroke-width="1.5" />
+
+    <!-- Bengali Text inside Ribbon -->
+    <text x="256" y="77" 
+          text-anchor="middle" 
+          font-family="'Hind Siliguri', sans-serif" 
+          font-size="22" 
+          font-weight="700" 
+          fill="#fef08a"
+          letter-spacing="0.5">আখরকান্দা প্রিমিয়ার লিগ</text>
+  </g>
+
+  <!-- Laurel Wreath Leaves on Sides -->
+  <g fill="url(#goldGrad)" opacity="0.9">
+    <!-- Left Wreath -->
+    <path d="M 118,220 C 104,240 106,270 124,286 C 112,274 110,250 118,220 Z"/>
+    <path d="M 126,170 C 114,190 118,214 136,226 C 124,214 120,194 126,170 Z"/>
+    <path d="M 142,126 C 132,142 136,164 152,174 C 140,164 138,146 142,126 Z"/>
+
+    <!-- Right Wreath -->
+    <path d="M 394,220 C 408,240 406,270 388,286 C 400,274 402,250 394,220 Z"/>
+    <path d="M 386,170 C 398,190 394,214 376,226 C 388,214 392,194 386,170 Z"/>
+    <path d="M 370,126 C 380,142 376,164 360,174 C 372,164 374,146 370,126 Z"/>
+  </g>
+
+  <!-- Established Year & Sport Tag -->
+  <text x="256" y="432" 
+        text-anchor="middle" 
+        font-family="'Outfit', sans-serif" 
+        font-size="14" 
+        font-weight="700" 
+        letter-spacing="3" 
+        fill="#34d399">FOOTBALL CHAMPIONSHIP</text>
+</svg>

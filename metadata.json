@@ -1,0 +1,6 @@
+{
+  "name": "আখরকান্দা দক্ষিণ পাড়া প্রিমিয়ার লিগ - APL",
+  "description": "আখরকান্দা দক্ষিণ পাড়া প্রিমিয়ার লিগ (APL) ফুটবল টুর্নামেন্টের লাইভ স্কোর, ফিক্সচার, পয়েন্ট টেবিল, কমিটি ও অ্যাডমিন কন্ট্রোলার।",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
