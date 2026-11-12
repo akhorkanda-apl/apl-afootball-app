@@ -111,25 +111,25 @@
   <!-- Golden Banner / Ribbon for Bengali Name -->
   <g transform="translate(0, 315)">
     <!-- Ribbon Shadow -->
-    <path d="M 80,68 L 130,48 L 130,78 Z" fill="#78350f" />
-    <path d="M 432,68 L 382,48 L 382,78 Z" fill="#78350f" />
+    <path d="M 52,68 L 102,48 L 102,78 Z" fill="#78350f" />
+    <path d="M 460,68 L 410,48 L 410,78 Z" fill="#78350f" />
     
     <!-- Ribbon Wings -->
-    <path d="M 70,78 L 136,54 L 136,92 L 70,114 Z" fill="url(#goldGrad)" />
-    <path d="M 442,78 L 376,54 L 376,92 L 442,114 Z" fill="url(#goldGrad)" />
+    <path d="M 42,78 L 108,54 L 108,92 L 42,114 Z" fill="url(#goldGrad)" />
+    <path d="M 470,78 L 404,54 L 404,92 L 470,114 Z" fill="url(#goldGrad)" />
 
     <!-- Main Ribbon Plaque -->
-    <rect x="110" y="46" width="292" height="48" rx="8" fill="url(#goldGrad)" stroke="#78350f" stroke-width="2" />
-    <rect x="114" y="50" width="284" height="40" rx="6" fill="#042f24" stroke="url(#goldGrad)" stroke-width="1.5" />
+    <rect x="82" y="46" width="348" height="48" rx="8" fill="url(#goldGrad)" stroke="#78350f" stroke-width="2" />
+    <rect x="86" y="50" width="340" height="40" rx="6" fill="#042f24" stroke="url(#goldGrad)" stroke-width="1.5" />
 
     <!-- Bengali Text inside Ribbon -->
-    <text x="256" y="77" 
+    <text x="256" y="76" 
           text-anchor="middle" 
           font-family="'Hind Siliguri', sans-serif" 
-          font-size="22" 
+          font-size="17" 
           font-weight="700" 
           fill="#fef08a"
-          letter-spacing="0.5">আখরকান্দা প্রিমিয়ার লিগ</text>
+          letter-spacing="0.2">আখরকান্দা দক্ষিণ পাড়া প্রিমিয়ার লিগ</text>
   </g>
 
   <!-- Laurel Wreath Leaves on Sides -->

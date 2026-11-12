@@ -4,7 +4,7 @@ import { useTournament } from '../context/TournamentContext';
 import { toBengaliNumber } from '../utils/bengali';
 
 export const PointsTableView: React.FC = () => {
-  const { standingsByGroup, activeTournament, useBengaliNumerals } = useTournament();
+  const { standingsByGroup, activeTournament, teams, useBengaliNumerals } = useTournament();
 
   const groups = activeTournament.groups || [];
   const [selectedGroup, setSelectedGroup] = useState<string>(groups[0] || 'গ্রুপ ক');
@@ -76,6 +76,7 @@ export const PointsTableView: React.FC = () => {
                 standings.map((row, idx) => {
                   const isQualifying = idx < 2; // Top 2 qualify
                   const gdSign = row.goalDifference > 0 ? '+' : '';
+                  const teamObj = teams.find((t) => t.id === row.teamId);
 
                   return (
                     <tr
@@ -110,8 +111,9 @@ export const PointsTableView: React.FC = () => {
                             <span className="truncate block font-bold text-slate-100">
                               {row.teamName}
                             </span>
-                            <span className="text-[10px] text-slate-400 font-normal block">
+                            <span className="text-[10px] text-slate-400 font-normal block truncate">
                               {row.teamShortName}
+                              {teamObj?.managerName ? ` · ম্যানেজার: ${teamObj.managerName}` : ''}
                             </span>
                           </div>
                         </div>

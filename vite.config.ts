@@ -14,9 +14,9 @@ export default defineConfig(() => {
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'apl-logo.svg'],
         manifest: {
           id: '/',
-          name: 'আখরকান্দা প্রিমিয়ার লিগ - APL',
+          name: 'আখরকান্দা দক্ষিণ পাড়া প্রিমিয়ার লিগ - APL',
           short_name: 'APL Football',
-          description: 'আখরকান্দা প্রিমিয়ার লিগ (APL) ফুটবল টুর্নামেন্টের লাইভ স্কোর, ফিক্সচার, পয়েন্ট টেবিল ও অ্যাডমিন প্যানেল।',
+          description: 'আখরকান্দা দক্ষিণ পাড়া প্রিমিয়ার লিগ - APL ফুটবল টুর্নামেন্টের লাইভ স্কোর, ফিক্সচার, পয়েন্ট টেবিল ও অ্যাডমিন প্যানেল।',
           theme_color: '#047857',
           background_color: '#061712',
           display: 'standalone',

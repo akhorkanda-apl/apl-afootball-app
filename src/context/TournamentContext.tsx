@@ -2,8 +2,16 @@
  * Multi-Tournament State Management Context for APL Hub
  */
 
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { initialCommitteeMembers, initialOrgSettings, initialTournaments } from '../data/initialData';
+import {
+  APL_MAIN_ROW_ID,
+  APL_STATE_TABLE,
+  AplCloudState,
+  fetchAplCloudState,
+  pushAplCloudState,
+  supabase,
+} from '../lib/supabase';
 import {
   CommitteeMember,
   GroupStanding,
@@ -117,19 +125,62 @@ const TOURNAMENTS_STORAGE_KEY = 'apl_tournaments_v3';
 const COMMITTEE_STORAGE_KEY = 'apl_committee_v3';
 const ADMIN_AUTH_KEY = 'apl_admin_session_v3';
 const NUMERAL_PREF_KEY = 'apl_numeral_pref_v3';
+const PIN_MIGRATED_KEY = 'apl_pin_7254_migrated_v1';
+
+const BENGALI_TO_ENGLISH_DIGITS: Record<string, string> = {
+  '০': '0',
+  '১': '1',
+  '২': '2',
+  '৩': '3',
+  '৪': '4',
+  '৫': '5',
+  '৬': '6',
+  '৭': '7',
+  '৮': '8',
+  '৯': '9',
+};
+
+function normalizePinDigits(input: string): string {
+  return input
+    .trim()
+    .replace(/[০-৯]/g, (ch) => BENGALI_TO_ENGLISH_DIGITS[ch] ?? ch);
+}
+
+function normalizeOrgName(settings: OrganizationSettings): OrganizationSettings {
+  const next = { ...initialOrgSettings, ...settings };
+  if (
+    !next.orgName ||
+    next.orgName === 'আখরকান্দা প্রিমিয়ার লিগ - APL'
+  ) {
+    next.orgName = 'আখরকান্দা দক্ষিণ পাড়া প্রিমিয়ার লিগ - APL';
+  }
+  return next;
+}
 
 export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Load Org Settings with automatic migration to 'আখরকান্দা দক্ষিণ পাড়া প্রিমিয়ার লিগ - APL'
+  const clientIdRef = useRef<string>(
+    `apl-client-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+  );
+  const [localMutationSeq, setLocalMutationSeq] = useState(0);
+  const markLocalMutation = useCallback(() => {
+    setLocalMutationSeq((prev) => prev + 1);
+  }, []);
+
+  // Load Org Settings with automatic migration to 'আখরকান্দা দক্ষিণ পাড়া প্রিমিয়ার লিগ - APL' and PIN '7254'
   const [orgSettings, setOrgSettings] = useState<OrganizationSettings>(() => {
     try {
       const stored = localStorage.getItem(ORG_STORAGE_KEY);
       if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed.orgName === 'আখরকান্দা প্রিমিয়ার লিগ - APL' || !parsed.orgName) {
-          parsed.orgName = 'আখরকান্দা দক্ষিণ পাড়া প্রিমিয়ার লিগ - APL';
+        const parsed = normalizeOrgName(JSON.parse(stored));
+        if (!localStorage.getItem(PIN_MIGRATED_KEY)) {
+          if (parsed.adminPin === '1234') {
+            parsed.adminPin = '7254';
+          }
+          localStorage.setItem(PIN_MIGRATED_KEY, '1');
         }
-        return { ...initialOrgSettings, ...parsed };
+        return parsed;
       }
+      localStorage.setItem(PIN_MIGRATED_KEY, '1');
     } catch (e) {
       console.error('Failed to load org settings', e);
     }
@@ -188,7 +239,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setActiveLiveMatchId(live ? live.id : (activeTournament.matches[0]?.id || null));
   }, [activeTournamentId, activeTournament.matches]);
 
-  // Persist Org Settings
+  // Persist Org Settings (offline fallback cache)
   useEffect(() => {
     try {
       localStorage.setItem(ORG_STORAGE_KEY, JSON.stringify(orgSettings));
@@ -197,7 +248,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   }, [orgSettings]);
 
-  // Persist Tournaments
+  // Persist Tournaments (offline fallback cache)
   useEffect(() => {
     try {
       localStorage.setItem(TOURNAMENTS_STORAGE_KEY, JSON.stringify(tournaments));
@@ -206,7 +257,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   }, [tournaments]);
 
-  // Persist Committee Members
+  // Persist Committee Members (offline fallback cache)
   useEffect(() => {
     try {
       localStorage.setItem(COMMITTEE_STORAGE_KEY, JSON.stringify(committeeMembers));
@@ -223,14 +274,105 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     localStorage.setItem(NUMERAL_PREF_KEY, useBengaliNumerals ? 'true' : 'false');
   }, [useBengaliNumerals]);
 
-  // Running Timer Loop for Active Live Matches
+  // Keep ref of latest state for initial seed & cloud sync
+  const latestStateRef = useRef({ orgSettings, tournaments, committeeMembers });
+  latestStateRef.current = { orgSettings, tournaments, committeeMembers };
+
+  const applyRemoteCloudState = useCallback((remote: AplCloudState) => {
+    if (!remote || typeof remote !== 'object') return;
+    if (remote.clientId && remote.clientId === clientIdRef.current) return;
+
+    if (remote.orgSettings) {
+      setOrgSettings(normalizeOrgName(remote.orgSettings));
+    }
+    if (Array.isArray(remote.tournaments) && remote.tournaments.length > 0) {
+      setTournaments(remote.tournaments);
+    }
+    if (Array.isArray(remote.committeeMembers)) {
+      setCommitteeMembers(remote.committeeMembers);
+    }
+  }, []);
+
+  // Initial Supabase Fetch & Realtime Subscription on `apl_app_state` (id = 'main_state')
   useEffect(() => {
-    const hasRunningTimers = tournaments.some((t) =>
-      t.matches.some((m) => m.status === 'live' && m.isTimerRunning)
-    );
+    let isMounted = true;
+
+    const initCloudSync = async () => {
+      const remote = await fetchAplCloudState();
+      if (!isMounted) return;
+
+      if (remote && remote.orgSettings && Array.isArray(remote.tournaments)) {
+        applyRemoteCloudState(remote);
+      } else {
+        // Seed cloud state if row doesn't exist yet
+        const snapshot = latestStateRef.current;
+        await pushAplCloudState({
+          orgSettings: snapshot.orgSettings,
+          tournaments: snapshot.tournaments,
+          committeeMembers: snapshot.committeeMembers,
+          updatedAt: new Date().toISOString(),
+          clientId: clientIdRef.current,
+        });
+      }
+    };
+
+    initCloudSync();
+
+    const channel = supabase
+      .channel('apl-app-state-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: APL_STATE_TABLE,
+          filter: `id=eq.${APL_MAIN_ROW_ID}`,
+        },
+        (payload) => {
+          const newRow = payload.new as { id?: string; data?: AplCloudState } | null;
+          if (newRow?.data) {
+            applyRemoteCloudState(newRow.data);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      isMounted = false;
+      supabase.removeChannel(channel);
+    };
+  }, [applyRemoteCloudState]);
+
+  // Push local mutations to Supabase `apl_app_state` (debounced slightly to batch rapid updates)
+  useEffect(() => {
+    if (localMutationSeq === 0) return;
+
+    const timeout = setTimeout(() => {
+      const snapshot = latestStateRef.current;
+      pushAplCloudState({
+        orgSettings: snapshot.orgSettings,
+        tournaments: snapshot.tournaments,
+        committeeMembers: snapshot.committeeMembers,
+        updatedAt: new Date().toISOString(),
+        clientId: clientIdRef.current,
+      });
+    }, 200);
+
+    return () => clearTimeout(timeout);
+  }, [localMutationSeq]);
+
+  // Running Timer Loop for Active Live Matches
+  const hasRunningTimers = useMemo(
+    () => tournaments.some((t) => t.matches.some((m) => m.status === 'live' && m.isTimerRunning)),
+    [tournaments]
+  );
+
+  useEffect(() => {
     if (!hasRunningTimers) return;
 
+    let tickCount = 0;
     const interval = setInterval(() => {
+      tickCount += 1;
       setTournaments((prevTourns) =>
         prevTourns.map((t) => {
           const hasLive = t.matches.some((m) => m.status === 'live' && m.isTimerRunning);
@@ -250,10 +392,15 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           };
         })
       );
+
+      // Sync timer clock to cloud every 5 seconds while an admin has the timer running
+      if (isAdmin && tickCount % 5 === 0) {
+        markLocalMutation();
+      }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [tournaments]);
+  }, [hasRunningTimers, isAdmin, markLocalMutation]);
 
   // Teams & Matches for Active Tournament
   const teams = activeTournament.teams || [];
@@ -396,6 +543,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   // Multi-Tournament Switcher & Management
   const setActiveTournamentId = (id: string) => {
     setOrgSettings((prev) => ({ ...prev, activeTournamentId: id }));
+    if (isAdmin) markLocalMutation();
   };
 
   const createTournament = (
@@ -409,7 +557,8 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       matches: [],
     };
     setTournaments((prev) => [newTournament, ...prev]);
-    setActiveTournamentId(newId);
+    setOrgSettings((prev) => ({ ...prev, activeTournamentId: newId }));
+    markLocalMutation();
     return newTournament;
   };
 
@@ -417,6 +566,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setTournaments((prev) =>
       prev.map((t) => (t.id === id ? { ...t, ...updates } : t))
     );
+    markLocalMutation();
   };
 
   const deleteTournament = (id: string) => {
@@ -427,21 +577,25 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const remaining = tournaments.filter((t) => t.id !== id);
     setTournaments(remaining);
     if (activeTournamentId === id) {
-      setActiveTournamentId(remaining[0].id);
+      setOrgSettings((prev) => ({ ...prev, activeTournamentId: remaining[0].id }));
     }
+    markLocalMutation();
   };
 
   const updateOrgSettings = (updates: Partial<OrganizationSettings>) => {
     setOrgSettings((prev) => ({ ...prev, ...updates }));
+    markLocalMutation();
   };
 
   const updateActiveTournamentSettings = (updates: Partial<Tournament>) => {
     updateTournament(activeTournamentId, updates);
   };
 
-  // Admin Auth
+  // Admin Auth (accepts both English '7254' and Bengali '৭২৫৪' digits)
   const loginAdmin = (pin: string): boolean => {
-    if (pin.trim() === orgSettings.adminPin.trim()) {
+    const normalizedInput = normalizePinDigits(pin);
+    const normalizedStored = normalizePinDigits(orgSettings.adminPin);
+    if (normalizedInput && normalizedInput === normalizedStored) {
       setIsAdmin(true);
       return true;
     }
@@ -453,13 +607,17 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const changeAdminPin = (currentPin: string, newPin: string) => {
-    if (currentPin.trim() !== orgSettings.adminPin.trim()) {
+    const normalizedCurrent = normalizePinDigits(currentPin);
+    const normalizedStored = normalizePinDigits(orgSettings.adminPin);
+    const normalizedNew = normalizePinDigits(newPin);
+
+    if (normalizedCurrent !== normalizedStored) {
       return { success: false, message: 'বর্তমান পিন সঠিক নয়!' };
     }
-    if (newPin.trim().length < 4) {
+    if (normalizedNew.length < 4) {
       return { success: false, message: 'নতুন পিন কমপক্ষে ৪ সংখ্যার হতে হবে।' };
     }
-    updateOrgSettings({ adminPin: newPin.trim() });
+    updateOrgSettings({ adminPin: normalizedNew });
     return { success: true, message: 'অ্যাডমিন পিন সফলভাবে পরিবর্তন হয়েছে!' };
   };
 
@@ -732,6 +890,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       order: data.order ?? committeeMembers.length + 1,
     };
     setCommitteeMembers((prev) => [...prev, newMember]);
+    markLocalMutation();
     return newMember;
   };
 
@@ -739,14 +898,17 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setCommitteeMembers((prev) =>
       prev.map((m) => (m.id === id ? { ...m, ...updates } : m))
     );
+    markLocalMutation();
   };
 
   const deleteCommitteeMember = (id: string) => {
     setCommitteeMembers((prev) => prev.filter((m) => m.id !== id));
+    markLocalMutation();
   };
 
   const reorderCommitteeMembers = (reordered: CommitteeMember[]) => {
     setCommitteeMembers(reordered);
+    markLocalMutation();
   };
 
   // Backup & Reset
@@ -768,11 +930,12 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (!data.orgSettings || !Array.isArray(data.tournaments)) {
         return { success: false, message: 'অবৈধ ফাইল ফরম্যাট! ব্যাকআপ ডেটা পাওয়া যায়নি।' };
       }
-      setOrgSettings(data.orgSettings);
+      setOrgSettings(normalizeOrgName(data.orgSettings));
       setTournaments(data.tournaments);
       if (Array.isArray(data.committeeMembers)) {
         setCommitteeMembers(data.committeeMembers);
       }
+      markLocalMutation();
       return { success: true, message: 'টুর্নামেন্ট হাব ডেটা সফলভাবে রিস্টোর হয়েছে!' };
     } catch {
       return { success: false, message: 'ফাইলটি পড়তে ত্রুটি হয়েছে। সঠিক JSON ফাইল নির্বাচন করুন।' };
@@ -804,6 +967,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       activeTournamentId: 'tourn-blank',
     }));
     setActiveLiveMatchId(null);
+    markLocalMutation();
   };
 
   const restoreDemoData = () => {
@@ -811,6 +975,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setTournaments(initialTournaments);
     setCommitteeMembers(initialCommitteeMembers);
     setActiveLiveMatchId('match-1');
+    markLocalMutation();
   };
 
   return (

@@ -153,7 +153,7 @@ export const NoticeView: React.FC = () => {
         <div>
           <h4 className="text-xs font-bold text-slate-200 mb-0.5">আয়োজক ও পরিচালনা কমিটি</h4>
           <p className="leading-relaxed text-slate-300">
-            {activeTournament.committeeNote || 'আখরকান্দা প্রিমিয়ার লিগ (APL) কেন্দ্রীয় পরিচালনা পরিষদ ও শৃঙ্খলা কমিটি।'}
+            {activeTournament.committeeNote || 'আখরকান্দা দক্ষিণ পাড়া প্রিমিয়ার লিগ - APL কেন্দ্রীয় পরিচালনা পরিষদ ও শৃঙ্খলা কমিটি।'}
           </p>
         </div>
       </div>

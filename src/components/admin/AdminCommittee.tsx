@@ -183,7 +183,7 @@ export const AdminCommittee: React.FC = () => {
             >
               <div className="flex items-center gap-3 min-w-0">
                 {/* Photo or Avatar */}
-                <div className="w-11 h-11 rounded-xl bg-slate-800 border border-emerald-600/40 overflow-hidden shrink-0 flex items-center justify-center">
+                <div className="w-11 h-11 rounded-full bg-slate-800 border border-emerald-600/40 overflow-hidden shrink-0 flex items-center justify-center">
                   {member.photoUrl ? (
                     <img
                       src={member.photoUrl}

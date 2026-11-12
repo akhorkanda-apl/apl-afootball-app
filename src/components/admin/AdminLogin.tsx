@@ -40,28 +40,28 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onSuccess, onCancel }) =
     if (success) {
       onSuccess();
     } else {
-      setError('ভুল পিন নম্বর! আবার চেষ্টা করুন (ডিফল্ট: 1234)');
+      setError('ভুল পিন নম্বর! আবার চেষ্টা করুন (ডিফল্ট: 7254 / ৭২৫৪)');
     }
   };
 
   return (
     <div className="p-6 text-slate-100 max-w-sm mx-auto">
-      <div className="text-center mb-6">
+      <div className="text-center mb-5">
         <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center text-white mx-auto mb-3 shadow-lg border border-emerald-400/40">
           <KeyRound className="w-7 h-7 text-amber-300" />
         </div>
         <h3 className="text-lg font-bold text-white">অ্যাডমিন প্রবেশদ্বার</h3>
         <p className="text-xs text-slate-400 mt-1">
-          টুর্নামেন্ট নিয়ন্ত্রণ প্যানেলে প্রবেশের জন্য ৪ সংখ্যার পিন প্রদান করুন
+          টুর্নামেন্ট নিয়ন্ত্রণ প্যানেলে প্রবেশের জন্য পিন প্রদান করুন
         </p>
-        <p className="text-[11px] text-amber-400 font-semibold mt-1 bg-amber-950/60 py-0.5 px-2 rounded-full inline-block border border-amber-600/30">
-          ডিফল্ট পিন: 1234
+        <p className="text-[11px] text-amber-400 font-semibold mt-1 bg-amber-950/60 py-0.5 px-2.5 rounded-full inline-block border border-amber-600/30">
+          ডিফল্ট পিন: 7254 / ৭২৫৪
         </p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* PIN Input Dots / Display */}
-        <div className="flex items-center justify-center gap-3 my-4">
+        <div className="flex items-center justify-center gap-3 my-3">
           {[0, 1, 2, 3].map((idx) => {
             const hasChar = pin.length > idx;
             return (
@@ -78,6 +78,20 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onSuccess, onCancel }) =
             );
           })}
         </div>
+
+        {/* Direct Keyboard Input (Accepts English 7254 or Bengali ৭২৫৪) */}
+        <input
+          type="password"
+          inputMode="numeric"
+          maxLength={6}
+          placeholder="কীবোর্ডে পিন লিখুন (যেমন: 7254 বা ৭২৫৪)"
+          value={pin}
+          onChange={(e) => {
+            setPin(e.target.value);
+            setError('');
+          }}
+          className="w-full min-h-[40px] bg-slate-900/80 border border-slate-700/80 rounded-xl px-3 text-center text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+        />
 
         {error && (
           <div className="flex items-center gap-2 p-2.5 rounded-xl bg-red-950/80 border border-red-500/40 text-red-300 text-xs text-center justify-center">

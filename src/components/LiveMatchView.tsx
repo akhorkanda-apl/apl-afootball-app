@@ -262,6 +262,11 @@ export const LiveMatchView: React.FC<LiveMatchViewProps> = ({ onOpenLiveControll
                 <h3 className="font-bold text-slate-100 text-xs sm:text-sm line-clamp-2 leading-tight">
                   {team1?.name || 'দল ১'}
                 </h3>
+                {team1?.managerName && (
+                  <span className="text-[10px] text-slate-400 mt-0.5 truncate max-w-full">
+                    ম্যানেজার: {team1.managerName}
+                  </span>
+                )}
               </div>
 
               {/* Score Center */}
@@ -298,6 +303,11 @@ export const LiveMatchView: React.FC<LiveMatchViewProps> = ({ onOpenLiveControll
                 <h3 className="font-bold text-slate-100 text-xs sm:text-sm line-clamp-2 leading-tight">
                   {team2?.name || 'দল ২'}
                 </h3>
+                {team2?.managerName && (
+                  <span className="text-[10px] text-slate-400 mt-0.5 truncate max-w-full">
+                    ম্যানেজার: {team2.managerName}
+                  </span>
+                )}
               </div>
             </div>
 

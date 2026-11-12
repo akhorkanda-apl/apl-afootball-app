@@ -16,11 +16,17 @@ import { AdminModal } from './components/admin/AdminModal';
 import { AplLogo } from './components/AplLogo';
 
 function MainTournamentApp() {
-  const { matches } = useTournament();
+  const { matches, orgSettings } = useTournament();
   const [activeTab, setActiveTab] = useState<TabType>('live');
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [selectedMatchForAdminLive, setSelectedMatchForAdminLive] = useState<string | undefined>();
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
+  const [showSplash, setShowSplash] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setShowSplash(false), 950);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Connectivity monitoring
   useEffect(() => {
@@ -45,6 +51,22 @@ function MainTournamentApp() {
 
   return (
     <div className="min-h-screen bg-[#061410] text-slate-100 flex flex-col font-bengali stadium-glow selection:bg-emerald-500 selection:text-white">
+      {/* Branded Splash Screen */}
+      {showSplash && (
+        <div
+          onClick={() => setShowSplash(false)}
+          className="fixed inset-0 z-50 bg-[#04120e] flex flex-col items-center justify-center p-6 text-center cursor-pointer animate-in fade-in"
+        >
+          <AplLogo size="2xl" customUrl={orgSettings.customLogoUrl} />
+          <h1 className="mt-4 text-lg sm:text-xl font-black text-white tracking-tight font-display">
+            {orgSettings.orgName}
+          </h1>
+          <p className="mt-1 text-xs font-semibold text-emerald-400">
+            অফিসিয়াল ফুটবল টুর্নামেন্ট ও লাইভ স্কোর হাব
+          </p>
+        </div>
+      )}
+
       {/* Top Header */}
       <Header
         onOpenAdmin={() => {
@@ -61,7 +83,7 @@ function MainTournamentApp() {
         )}
         {activeTab === 'fixtures' && (
           <FixturesView
-            onSelectLiveMatch={(mId) => {
+            onSelectLiveMatch={() => {
               setActiveTab('live');
             }}
           />
@@ -71,6 +93,17 @@ function MainTournamentApp() {
         {activeTab === 'committee' && <CommitteeView />}
         {activeTab === 'rules' && <NoticeView />}
       </main>
+
+      {/* Organization Footer */}
+      <footer className="w-full max-w-4xl mx-auto px-4 pt-2 pb-24 text-center border-t border-emerald-950/60">
+        <div className="inline-flex items-center justify-center gap-2 text-xs text-slate-400">
+          <AplLogo size="xs" customUrl={orgSettings.customLogoUrl} />
+          <span className="font-semibold text-emerald-300">{orgSettings.orgName}</span>
+        </div>
+        <p className="text-[11px] text-slate-500 mt-1">
+          সর্বস্বত্ব সংরক্ষিত · রিয়েল-টাইম ক্লাউড স্কোরবোর্ড ও টুর্নামেন্ট ম্যানেজমেন্ট
+        </p>
+      </footer>
 
       {/* Mobile-First Fixed Bottom Navigation */}
       <BottomNav

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Edit3, Users, ChevronDown, ChevronUp, X, Check, Shield } from 'lucide-react';
+import { Plus, Trash2, Edit3, ChevronDown, ChevronUp, X, Check, Shield, UserCheck, Phone } from 'lucide-react';
 import { useTournament } from '../../context/TournamentContext';
 import { Player, PlayerPosition, Team } from '../../types/tournament';
 
@@ -298,10 +298,22 @@ export const AdminTeams: React.FC = () => {
                       <h4 className="text-xs sm:text-sm font-bold text-white truncate">
                         {t.name}
                       </h4>
-                      <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-400 mt-0.5">
                         <span className="text-amber-400 font-semibold">{t.group}</span>
                         <span>·</span>
                         <span>খেলোয়াড়: {t.players.length} জন</span>
+                        {t.managerName && (
+                          <>
+                            <span>·</span>
+                            <span className="text-emerald-300 flex items-center gap-1">
+                              <UserCheck className="w-3 h-3 shrink-0" />
+                              <span>ম্যানেজার: {t.managerName}</span>
+                              {t.managerPhone && (
+                                <span className="text-slate-400 font-mono">({t.managerPhone})</span>
+                              )}
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -462,6 +474,37 @@ export const AdminTeams: React.FC = () => {
                       </option>
                     ))}
                   </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-slate-800/80">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    টিম ম্যানেজারের নাম:
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="যেমন: মোঃ রফিকুল ইসলাম"
+                    value={teamManagerName}
+                    onChange={(e) => setTeamManagerName(e.target.value)}
+                    className="w-full min-h-[42px] bg-slate-800 border border-slate-700 rounded-xl px-3 text-xs text-white placeholder-slate-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    ম্যানেজারের মোবাইল নং (অপশনাল):
+                  </label>
+                  <div className="relative">
+                    <Phone className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="tel"
+                      placeholder="017XXXXXXXX"
+                      value={teamManagerPhone}
+                      onChange={(e) => setTeamManagerPhone(e.target.value)}
+                      className="w-full min-h-[42px] bg-slate-800 border border-slate-700 rounded-xl pl-8 pr-3 text-xs text-white placeholder-slate-500 font-mono"
+                    />
+                  </div>
                 </div>
               </div>
 

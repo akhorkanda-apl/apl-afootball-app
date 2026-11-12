@@ -7,7 +7,7 @@ import { CommitteeMember, OrganizationSettings, Tournament } from '../types/tour
 export const initialOrgSettings: OrganizationSettings = {
   orgName: 'আখরকান্দা দক্ষিণ পাড়া প্রিমিয়ার লিগ - APL',
   customLogoUrl: '',
-  adminPin: '1234',
+  adminPin: '7254',
   activeTournamentId: 'tourn-1',
 };
 

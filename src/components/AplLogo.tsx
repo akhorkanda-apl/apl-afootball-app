@@ -38,7 +38,7 @@ export const AplLogo: React.FC<AplLogoProps> = ({
         ) : (
           <img
             src="/apl-logo.svg"
-            alt="আখরকান্দা প্রিমিয়ার লিগ (APL) ক্রেস্ট লোগো"
+            alt="আখরকান্দা দক্ষিণ পাড়া প্রিমিয়ার লিগ - APL ক্রেস্ট লোগো"
             className="w-full h-full object-contain filter drop-shadow hover:scale-105 transition-transform duration-200"
           />
         )}
@@ -55,7 +55,7 @@ export const AplLogo: React.FC<AplLogoProps> = ({
             </span>
           </div>
           <span className="text-xs font-semibold text-slate-200 leading-tight">
-            আখরকান্দা প্রিমিয়ার লিগ
+            আখরকান্দা দক্ষিণ পাড়া প্রিমিয়ার লিগ
           </span>
         </div>
       )}

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Shield, Users } from 'lucide-react';
+import { X, Users, UserCheck, Phone } from 'lucide-react';
 import { Team } from '../types/tournament';
 import { toBengaliNumber } from '../utils/bengali';
 
@@ -151,12 +151,29 @@ export const LineupModal: React.FC<LineupModalProps> = ({
           <div className="grid grid-cols-2 gap-3 max-h-72 overflow-y-auto">
             {/* Team 1 Squad */}
             <div className="p-3 rounded-2xl bg-[#061c16] border border-emerald-900/60 space-y-2">
-              <div className="flex items-center gap-2 pb-1.5 border-b border-emerald-900/40">
-                <span
-                  className="w-3 h-3 rounded-full"
-                  style={{ backgroundColor: team1?.color }}
-                />
-                <h4 className="text-xs font-bold text-white truncate">{team1?.name}</h4>
+              <div className="pb-1.5 border-b border-emerald-900/40 space-y-1">
+                <div className="flex items-center gap-2">
+                  <span
+                    className="w-3 h-3 rounded-full shrink-0"
+                    style={{ backgroundColor: team1?.color }}
+                  />
+                  <h4 className="text-xs font-bold text-white truncate">{team1?.name}</h4>
+                </div>
+                {team1?.managerName && (
+                  <div className="text-[10px] text-emerald-300 flex items-center gap-1 flex-wrap">
+                    <UserCheck className="w-3 h-3 shrink-0" />
+                    <span>ম্যানেজার: {team1.managerName}</span>
+                    {team1.managerPhone && (
+                      <a
+                        href={`tel:${team1.managerPhone.replace(/[^\d+]/g, '')}`}
+                        className="inline-flex items-center gap-0.5 text-amber-300 hover:underline font-mono"
+                      >
+                        <Phone className="w-2.5 h-2.5" />
+                        <span>{num(team1.managerPhone)}</span>
+                      </a>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="space-y-1.5">
                 {t1Players.map((p) => (
@@ -175,12 +192,29 @@ export const LineupModal: React.FC<LineupModalProps> = ({
 
             {/* Team 2 Squad */}
             <div className="p-3 rounded-2xl bg-[#061c16] border border-emerald-900/60 space-y-2">
-              <div className="flex items-center gap-2 pb-1.5 border-b border-emerald-900/40">
-                <span
-                  className="w-3 h-3 rounded-full"
-                  style={{ backgroundColor: team2?.color }}
-                />
-                <h4 className="text-xs font-bold text-white truncate">{team2?.name}</h4>
+              <div className="pb-1.5 border-b border-emerald-900/40 space-y-1">
+                <div className="flex items-center gap-2">
+                  <span
+                    className="w-3 h-3 rounded-full shrink-0"
+                    style={{ backgroundColor: team2?.color }}
+                  />
+                  <h4 className="text-xs font-bold text-white truncate">{team2?.name}</h4>
+                </div>
+                {team2?.managerName && (
+                  <div className="text-[10px] text-emerald-300 flex items-center gap-1 flex-wrap">
+                    <UserCheck className="w-3 h-3 shrink-0" />
+                    <span>ম্যানেজার: {team2.managerName}</span>
+                    {team2.managerPhone && (
+                      <a
+                        href={`tel:${team2.managerPhone.replace(/[^\d+]/g, '')}`}
+                        className="inline-flex items-center gap-0.5 text-amber-300 hover:underline font-mono"
+                      >
+                        <Phone className="w-2.5 h-2.5" />
+                        <span>{num(team2.managerPhone)}</span>
+                      </a>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="space-y-1.5">
                 {t2Players.map((p) => (

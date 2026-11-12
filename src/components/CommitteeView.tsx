@@ -89,9 +89,9 @@ export const CommitteeView: React.FC = () => {
                 }`}
               >
                 <div className="flex items-start gap-3.5">
-                  {/* Fixed-size Uniform Profile Photo with Fallback Avatar */}
+                  {/* Fixed-size Uniform Circular Profile Photo with Fallback Avatar */}
                   <div className="relative shrink-0">
-                    <div className="w-16 h-16 rounded-2xl overflow-hidden bg-slate-800 border-2 border-emerald-500/40 shadow flex items-center justify-center">
+                    <div className="w-16 h-16 rounded-full overflow-hidden bg-slate-800 border-2 border-emerald-500/50 shadow flex items-center justify-center">
                       {member.photoUrl ? (
                         <img
                           src={member.photoUrl}
@@ -105,7 +105,7 @@ export const CommitteeView: React.FC = () => {
                       )}
                     </div>
                     {isLeader && (
-                      <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center shadow-md">
+                      <span className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center shadow-md border border-slate-950">
                         <ShieldCheck className="w-3 h-3 stroke-[2.5]" />
                       </span>
                     )}
@@ -127,9 +127,17 @@ export const CommitteeView: React.FC = () => {
                       {member.name}
                     </h3>
 
-                    <p className="text-xs text-slate-400 mt-1 font-mono tracking-wide">
-                      {member.phone ? num(member.phone) : 'ফোন নম্বর নেই'}
-                    </p>
+                    {member.phone ? (
+                      <a
+                        href={`tel:${cleanPhone}`}
+                        className="inline-flex items-center gap-1 text-xs text-emerald-300 hover:text-amber-300 hover:underline mt-1 font-mono tracking-wide transition"
+                      >
+                        <Phone className="w-3 h-3 shrink-0" />
+                        <span>{num(member.phone)}</span>
+                      </a>
+                    ) : (
+                      <p className="text-xs text-slate-500 mt-1">ফোন নম্বর নেই</p>
+                    )}
                   </div>
                 </div>
 
