@@ -16,7 +16,7 @@ import { AdminModal } from './components/admin/AdminModal';
 import { AplLogo } from './components/AplLogo';
 
 function MainTournamentApp() {
-  const { matches, orgSettings } = useTournament();
+  const { matches, orgSettings, setActiveLiveMatchId } = useTournament();
   const [activeTab, setActiveTab] = useState<TabType>('live');
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [selectedMatchForAdminLive, setSelectedMatchForAdminLive] = useState<string | undefined>();
@@ -27,6 +27,18 @@ function MainTournamentApp() {
     const timer = setTimeout(() => setShowSplash(false), 950);
     return () => clearTimeout(timer);
   }, []);
+
+  // Sync custom logo to document favicon / apple-touch-icon if customized
+  useEffect(() => {
+    const customUrl = orgSettings.customLogoUrl?.trim();
+    const iconHref = customUrl || '/pwa-192x192.png';
+    const appleHref = customUrl || '/apple-touch-icon.png';
+
+    const faviconEl = document.querySelector<HTMLLinkElement>('link[rel="icon"][sizes="192x192"]');
+    const appleEl = document.querySelector<HTMLLinkElement>('link[rel="apple-touch-icon"]');
+    if (faviconEl) faviconEl.href = iconHref;
+    if (appleEl) appleEl.href = appleHref;
+  }, [orgSettings.customLogoUrl]);
 
   // Connectivity monitoring
   useEffect(() => {
@@ -83,7 +95,8 @@ function MainTournamentApp() {
         )}
         {activeTab === 'fixtures' && (
           <FixturesView
-            onSelectLiveMatch={() => {
+            onSelectLiveMatch={(mId) => {
+              setActiveLiveMatchId(mId);
               setActiveTab('live');
             }}
           />

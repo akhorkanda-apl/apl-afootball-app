@@ -1,5 +1,14 @@
 import React, { useState } from 'react';
-import { Lock, KeyRound, AlertCircle, CheckCircle2 } from 'lucide-react';
+import {
+  Lock,
+  Mail,
+  KeyRound,
+  AlertCircle,
+  Eye,
+  EyeOff,
+  ShieldCheck,
+  Loader2,
+} from 'lucide-react';
 import { useTournament } from '../../context/TournamentContext';
 
 interface AdminLoginProps {
@@ -8,151 +17,146 @@ interface AdminLoginProps {
 }
 
 export const AdminLogin: React.FC<AdminLoginProps> = ({ onSuccess, onCancel }) => {
-  const { loginAdmin } = useTournament();
-  const [pin, setPin] = useState('');
+  const { loginAdminWithEmail, isAuthChecking } = useTournament();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  const handleKeypadPress = (val: string) => {
-    if (pin.length < 6) {
-      const newPin = pin + val;
-      setPin(newPin);
-      setError('');
-    }
-  };
-
-  const handleBackspace = () => {
-    setPin(pin.slice(0, -1));
-    setError('');
-  };
-
-  const handleClear = () => {
-    setPin('');
-    setError('');
-  };
-
-  const handleSubmit = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!pin) {
-      setError('দয়া করে পিন নম্বর প্রদান করুন');
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim() || !password) {
+      setError('দয়া করে ইমেইল এবং পাসওয়ার্ড উভয়ই লিখুন।');
       return;
     }
-    const success = loginAdmin(pin);
-    if (success) {
+
+    setIsSubmitting(true);
+    setError('');
+    const result = await loginAdminWithEmail(email.trim(), password);
+    setIsSubmitting(false);
+
+    if (result.success) {
       onSuccess();
     } else {
-      setError('ভুল পিন নম্বর! আবার চেষ্টা করুন (ডিফল্ট: 7254 / ৭২৫৪)');
+      setError(result.message);
     }
   };
 
+  if (isAuthChecking) {
+    return (
+      <div className="p-8 text-center text-slate-300 space-y-2">
+        <Loader2 className="w-7 h-7 text-emerald-400 animate-spin mx-auto" />
+        <p className="text-xs font-semibold">অ্যাডমিন সেশন যাচাই করা হচ্ছে...</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="p-6 text-slate-100 max-w-sm mx-auto">
+    <div className="p-5 sm:p-6 text-slate-100 max-w-sm w-full mx-auto">
       <div className="text-center mb-5">
         <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center text-white mx-auto mb-3 shadow-lg border border-emerald-400/40">
-          <KeyRound className="w-7 h-7 text-amber-300" />
+          <ShieldCheck className="w-7 h-7 text-amber-300" />
         </div>
         <h3 className="text-lg font-bold text-white">অ্যাডমিন প্রবেশদ্বার</h3>
-        <p className="text-xs text-slate-400 mt-1">
-          টুর্নামেন্ট নিয়ন্ত্রণ প্যানেলে প্রবেশের জন্য পিন প্রদান করুন
-        </p>
-        <p className="text-[11px] text-amber-400 font-semibold mt-1 bg-amber-950/60 py-0.5 px-2.5 rounded-full inline-block border border-amber-600/30">
-          ডিফল্ট পিন: 7254 / ৭২৫৪
+        <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+          মূল মালিক কর্তৃক অনুমোদিত ইমেইল, পাসওয়ার্ড ও <strong className="text-amber-300">admin</strong> রোল দিয়ে প্রবেশ করুন
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {/* PIN Input Dots / Display */}
-        <div className="flex items-center justify-center gap-3 my-3">
-          {[0, 1, 2, 3].map((idx) => {
-            const hasChar = pin.length > idx;
-            return (
-              <div
-                key={idx}
-                className={`w-11 h-12 rounded-xl flex items-center justify-center text-xl font-bold font-display border-2 transition-all ${
-                  hasChar
-                    ? 'border-emerald-400 bg-emerald-950/80 text-amber-400 shadow-md scale-105'
-                    : 'border-slate-700 bg-slate-900/60 text-slate-500'
-                }`}
-              >
-                {hasChar ? '●' : ''}
-              </div>
-            );
-          })}
+      <form onSubmit={handleSubmit} className="space-y-3.5">
+        {/* Email Field */}
+        <div>
+          <label className="block text-xs font-semibold text-slate-300 mb-1">
+            অ্যাডমিন ইমেইল:
+          </label>
+          <div className="relative">
+            <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="email"
+              required
+              autoComplete="email"
+              placeholder="admin@example.com"
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                setError('');
+              }}
+              className="w-full min-h-[44px] bg-slate-900/80 border border-slate-700/80 rounded-xl pl-9 pr-3 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            />
+          </div>
         </div>
 
-        {/* Direct Keyboard Input (Accepts English 7254 or Bengali ৭২৫৪) */}
-        <input
-          type="password"
-          inputMode="numeric"
-          maxLength={6}
-          placeholder="কীবোর্ডে পিন লিখুন (যেমন: 7254 বা ৭২৫৪)"
-          value={pin}
-          onChange={(e) => {
-            setPin(e.target.value);
-            setError('');
-          }}
-          className="w-full min-h-[40px] bg-slate-900/80 border border-slate-700/80 rounded-xl px-3 text-center text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-        />
+        {/* Password Field */}
+        <div>
+          <label className="block text-xs font-semibold text-slate-300 mb-1">
+            পাসওয়ার্ড:
+          </label>
+          <div className="relative">
+            <KeyRound className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type={showPassword ? 'text' : 'password'}
+              required
+              autoComplete="current-password"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                setError('');
+              }}
+              className="w-full min-h-[44px] bg-slate-900/80 border border-slate-700/80 rounded-xl pl-9 pr-10 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1"
+              title={showPassword ? 'পাসওয়ার্ড লুকান' : 'পাসওয়ার্ড দেখুন'}
+            >
+              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+          </div>
+        </div>
 
         {error && (
-          <div className="flex items-center gap-2 p-2.5 rounded-xl bg-red-950/80 border border-red-500/40 text-red-300 text-xs text-center justify-center">
-            <AlertCircle className="w-4 h-4 shrink-0" />
+          <div className="flex items-start gap-2 p-2.5 rounded-xl bg-red-950/80 border border-red-500/40 text-red-300 text-xs leading-relaxed">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
             <span>{error}</span>
           </div>
         )}
 
-        {/* Numeric On-Screen Keypad for Mobile Comfort */}
-        <div className="grid grid-cols-3 gap-2.5 pt-2">
-          {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
-            <button
-              type="button"
-              key={digit}
-              onClick={() => handleKeypadPress(digit)}
-              className="min-h-[50px] rounded-xl bg-slate-800/80 hover:bg-slate-700 text-white font-display font-bold text-lg active:scale-95 transition shadow-sm border border-slate-700/60"
-            >
-              {digit}
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={handleClear}
-            className="min-h-[50px] rounded-xl bg-slate-800/40 hover:bg-slate-700/60 text-slate-400 font-medium text-xs active:scale-95 transition"
-          >
-            মুছুন
-          </button>
-          <button
-            type="button"
-            onClick={() => handleKeypadPress('0')}
-            className="min-h-[50px] rounded-xl bg-slate-800/80 hover:bg-slate-700 text-white font-display font-bold text-lg active:scale-95 transition shadow-sm border border-slate-700/60"
-          >
-            0
-          </button>
-          <button
-            type="button"
-            onClick={handleBackspace}
-            className="min-h-[50px] rounded-xl bg-slate-800/40 hover:bg-slate-700/60 text-slate-300 font-medium text-xs active:scale-95 transition"
-          >
-            ⌫
-          </button>
-        </div>
-
-        {/* Submit Action */}
-        <div className="flex items-center gap-2 pt-3">
+        {/* Submit Actions */}
+        <div className="flex items-center gap-2 pt-2">
           <button
             type="button"
             onClick={onCancel}
-            className="flex-1 min-h-[44px] rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition"
+            disabled={isSubmitting}
+            className="flex-1 min-h-[44px] rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition disabled:opacity-50"
           >
             বাতিল
           </button>
           <button
             type="submit"
-            className="flex-1 min-h-[44px] rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition shadow-md active:scale-95 flex items-center justify-center gap-1.5"
+            disabled={isSubmitting}
+            className="flex-1 min-h-[44px] rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition shadow-md active:scale-95 flex items-center justify-center gap-1.5 disabled:opacity-60"
           >
-            <Lock className="w-3.5 h-3.5" />
-            <span>প্রবেশ করুন</span>
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>যাচাই হচ্ছে...</span>
+              </>
+            ) : (
+              <>
+                <Lock className="w-3.5 h-3.5" />
+                <span>প্রবেশ করুন</span>
+              </>
+            )}
           </button>
         </div>
       </form>
+
+      <p className="text-[11px] text-slate-500 text-center mt-4 leading-relaxed">
+        নিরাপত্তা: মূল মালিক Supabase অ্যাকাউন্ট থেকে যেকোনো সময় অ্যাডমিন এক্সেস চালু বা বন্ধ করতে পারবেন।
+      </p>
     </div>
   );
 };

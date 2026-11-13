@@ -14,18 +14,52 @@ import {
   HeartHandshake,
   Plus,
   Trash2,
+  ShieldCheck,
+  LogOut,
+  Smartphone,
+  Copy,
+  Image as ImageIcon,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { useTournament } from '../../context/TournamentContext';
 import { AplLogo } from '../AplLogo';
 import { Sponsor } from '../../types/tournament';
+import { compressImageFile } from '../../utils/image';
+
+const SUPABASE_OWNER_SQL = `-- ১. আপনার অ্যাসিস্ট্যান্ট/অ্যাডমিনকে 'admin' রোল দিতে (Supabase SQL Editor-এ চালান):
+UPDATE auth.users
+SET raw_app_meta_data = COALESCE(raw_app_meta_data, '{}'::jsonb) || '{"role": "admin"}'::jsonb
+WHERE email = 'assistant@example.com';
+
+-- ২. পাবলিক শুধু পড়তে পারবে (A to Z), আর শুধুমাত্র 'admin' রোল এডিট করতে পারবে:
+ALTER TABLE public.apl_app_state ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Public read access"
+ON public.apl_app_state FOR SELECT
+TO anon, authenticated
+USING (true);
+
+CREATE POLICY "Only admin role can insert"
+ON public.apl_app_state FOR INSERT
+TO authenticated
+WITH CHECK ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
+
+CREATE POLICY "Only admin role can update"
+ON public.apl_app_state FOR UPDATE
+TO authenticated
+USING ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin')
+WITH CHECK ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');`;
 
 export const AdminSettings: React.FC = () => {
   const {
     orgSettings,
     activeTournament,
+    adminUser,
+    logoutAdmin,
+    changeAdminPassword,
     updateOrgSettings,
     updateActiveTournamentSettings,
-    changeAdminPin,
     exportBackupJson,
     importBackupJson,
     resetAllData,
@@ -33,6 +67,7 @@ export const AdminSettings: React.FC = () => {
   } = useTournament();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const logoFileInputRef = useRef<HTMLInputElement>(null);
 
   // Organization Settings Form
   const [orgName, setOrgName] = useState(orgSettings.orgName);
@@ -67,11 +102,13 @@ export const AdminSettings: React.FC = () => {
 
   const [settingsSavedMessage, setSettingsSavedMessage] = useState(false);
 
-  // Change PIN Form
-  const [currentPin, setCurrentPin] = useState('');
-  const [newPin, setNewPin] = useState('');
-  const [confirmPin, setConfirmPin] = useState('');
-  const [pinMessage, setPinMessage] = useState<{ text: string; isError: boolean } | null>(null);
+  // Supabase Admin Password & Owner Guide State
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordMessage, setPasswordMessage] = useState<{ text: string; isError: boolean } | null>(null);
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+  const [showOwnerGuide, setShowOwnerGuide] = useState(false);
+  const [sqlCopied, setSqlCopied] = useState(false);
 
   // Confirmation Modals
   const [showResetConfirmModal, setShowResetConfirmModal] = useState(false);
@@ -123,18 +160,43 @@ export const AdminSettings: React.FC = () => {
     setSponsors((prev) => prev.filter((s) => s.id !== id));
   };
 
-  const handleChangePin = (e: React.FormEvent) => {
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const compressed = await compressImageFile(file, 256, 0.85);
+      setCustomLogoUrl(compressed);
+    } catch {
+      setBackupNotice('লোগো ছবিটি আপলোড করতে ব্যর্থ হয়েছে।');
+      setTimeout(() => setBackupNotice(null), 3000);
+    } finally {
+      e.target.value = '';
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newPin !== confirmPin) {
-      setPinMessage({ text: 'নতুন পিন দুটি মেলেনি!', isError: true });
+    if (newPassword !== confirmPassword) {
+      setPasswordMessage({ text: 'নতুন পাসওয়ার্ড দুটি মেলেনি!', isError: true });
       return;
     }
-    const res = changeAdminPin(currentPin, newPin);
-    setPinMessage({ text: res.message, isError: !res.success });
+    setIsUpdatingPassword(true);
+    const res = await changeAdminPassword(newPassword);
+    setIsUpdatingPassword(false);
+    setPasswordMessage({ text: res.message, isError: !res.success });
     if (res.success) {
-      setCurrentPin('');
-      setNewPin('');
-      setConfirmPin('');
+      setNewPassword('');
+      setConfirmPassword('');
+    }
+  };
+
+  const handleCopyOwnerSql = async () => {
+    try {
+      await navigator.clipboard.writeText(SUPABASE_OWNER_SQL);
+      setSqlCopied(true);
+      setTimeout(() => setSqlCopied(false), 2500);
+    } catch {
+      // ignore
     }
   };
 
@@ -218,31 +280,64 @@ export const AdminSettings: React.FC = () => {
           />
         </div>
 
-        {/* Custom Logo URL */}
-        <div>
-          <label className="block text-xs font-semibold text-slate-300 mb-1">
-            কাস্টম লোগো ইমেজ লিঙ্ক (URL - অপশনাল):
+        {/* Custom Logo URL or Gallery Upload */}
+        <div className="space-y-2">
+          <label className="block text-xs font-semibold text-slate-300">
+            কাস্টম লোগো (গ্যালারি থেকে আপলোড অথবা ইমেজ লিঙ্ক - অপশনাল):
           </label>
-          <input
-            type="url"
-            placeholder="https://example.com/apl-logo.png"
-            value={customLogoUrl}
-            onChange={(e) => setCustomLogoUrl(e.target.value)}
-            className="w-full min-h-[44px] bg-[#051813] border border-emerald-800 rounded-xl px-3 text-xs text-white placeholder-slate-600"
-          />
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input
+              type="text"
+              placeholder="https://example.com/apl-logo.png"
+              value={customLogoUrl}
+              onChange={(e) => setCustomLogoUrl(e.target.value)}
+              className="flex-1 min-h-[44px] bg-[#051813] border border-emerald-800 rounded-xl px-3 text-xs text-white placeholder-slate-600"
+            />
+            <input
+              ref={logoFileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleLogoUpload}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => logoFileInputRef.current?.click()}
+              className="min-h-[44px] px-3.5 rounded-xl bg-emerald-800 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 shrink-0 transition"
+            >
+              <ImageIcon className="w-4 h-4 text-amber-300" />
+              <span>গ্যালারি থেকে আপলোড</span>
+            </button>
+          </div>
         </div>
 
-        {/* Logo Preview */}
-        <div className="p-3 bg-[#051510] rounded-xl border border-emerald-950 flex items-center justify-between">
+        {/* Logo & Phone Install App Icon Preview */}
+        <div className="p-3 bg-[#051510] rounded-xl border border-emerald-950 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <AplLogo size="md" customUrl={customLogoUrl} />
             <div className="text-xs text-slate-300">
-              <span className="font-bold text-white block">লোগো প্রিভিউ</span>
+              <span className="font-bold text-white block">অ্যাপ হেডার ও ক্রেস্ট লোগো</span>
               <span className="text-[11px] text-slate-400">
                 {customLogoUrl ? 'কাস্টম ইমেজ ব্যবহৃত হচ্ছে' : 'অফিসিয়াল APL ভেক্টর ক্রেস্ট সক্রিয়'}
               </span>
             </div>
           </div>
+
+          <div className="flex items-center gap-2.5 bg-[#061e18] px-3 py-2 rounded-xl border border-emerald-900/60">
+            <img
+              src={customLogoUrl || '/pwa-192x192.png'}
+              alt="ফোন ইনস্টল আইকন"
+              className="w-9 h-9 rounded-xl object-cover border border-amber-400/50 shadow"
+            />
+            <div className="text-[11px]">
+              <span className="font-bold text-amber-300 flex items-center gap-1">
+                <Smartphone className="w-3 h-3" />
+                <span>ফোন অ্যাপ আইকন</span>
+              </span>
+              <span className="text-slate-400 block">APL Football</span>
+            </div>
+          </div>
+
           {customLogoUrl && (
             <button
               type="button"
@@ -495,92 +590,129 @@ export const AdminSettings: React.FC = () => {
         </button>
       </form>
 
-      {/* 2. Admin PIN Management */}
-      <form
-        onSubmit={handleChangePin}
-        className="rounded-2xl bg-[#061e18] border border-emerald-900/60 p-4 sm:p-5 shadow space-y-3"
-      >
-        <div className="pb-2 border-b border-emerald-900/40">
-          <h3 className="text-sm font-bold text-white flex items-center gap-2">
-            <KeyRound className="w-4 h-4 text-amber-400" />
-            <span>অ্যাডমিন পিন পরিবর্তন</span>
-          </h3>
-          <p className="text-xs text-slate-400 mt-0.5">
-            অননুমোদিত প্রবেশ রোধে ৪-৬ সংখ্যার পিন কোড সেট করুন
-          </p>
+      {/* 2. Supabase Admin Account, Password & Owner Access Control */}
+      <div className="rounded-2xl bg-[#061e18] border border-emerald-900/60 p-4 sm:p-5 shadow space-y-3">
+        <div className="pb-2 border-b border-emerald-900/40 flex items-center justify-between gap-2">
+          <div>
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <KeyRound className="w-4 h-4 text-amber-400" />
+              <span>অ্যাডমিন অ্যাকাউন্ট ও অ্যাক্সেস নিয়ন্ত্রণ</span>
+            </h3>
+            <p className="text-xs text-slate-400 mt-0.5">
+              নতুন সহকারী অ্যাডমিন যুক্ত, বন্ধ বা ডিলিট সরাসরি আপনার মূল Supabase অ্যাকাউন্ট থেকে নিয়ন্ত্রিত হয়
+            </p>
+          </div>
+          <span className="px-2.5 py-1 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-600/40 text-[10px] font-bold flex items-center gap-1 shrink-0">
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span>Role: admin</span>
+          </span>
         </div>
 
-        {pinMessage && (
-          <div
-            className={`p-2.5 rounded-xl text-xs font-medium flex items-center gap-2 ${
-              pinMessage.isError
-                ? 'bg-red-950/80 text-red-300 border border-red-500/40'
-                : 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/40'
-            }`}
+        <div className="p-3 rounded-xl bg-[#051510] border border-emerald-900/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="min-w-0">
+            <span className="text-[11px] text-slate-400 block">বর্তমানে লগইনকৃত অ্যাডমিন ইমেইল:</span>
+            <span className="text-xs sm:text-sm font-bold text-amber-300 truncate block">
+              {adminUser?.email || 'যাচাইকৃত অ্যাডমিন'}
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={logoutAdmin}
+            className="min-h-[40px] px-4 rounded-xl bg-red-950/70 hover:bg-red-900/80 text-red-300 border border-red-700/50 text-xs font-bold transition flex items-center justify-center gap-1.5 shrink-0"
           >
-            {pinMessage.isError ? (
-              <AlertTriangle className="w-4 h-4 shrink-0" />
-            ) : (
-              <CheckCircle className="w-4 h-4 shrink-0" />
-            )}
-            <span>{pinMessage.text}</span>
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
-              বর্তমান পিন:
-            </label>
-            <input
-              type="password"
-              required
-              maxLength={8}
-              placeholder="বর্তমান পিন"
-              value={currentPin}
-              onChange={(e) => setCurrentPin(e.target.value)}
-              className="w-full min-h-[44px] bg-[#051813] border border-emerald-800 rounded-xl px-3 text-xs text-white"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
-              নতুন পিন:
-            </label>
-            <input
-              type="password"
-              required
-              maxLength={8}
-              placeholder="নতুন পিন"
-              value={newPin}
-              onChange={(e) => setNewPin(e.target.value)}
-              className="w-full min-h-[44px] bg-[#051813] border border-emerald-800 rounded-xl px-3 text-xs text-white"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
-              নতুন পিন নিশ্চিত করুন:
-            </label>
-            <input
-              type="password"
-              required
-              maxLength={8}
-              placeholder="পুনরায় নতুন পিন"
-              value={confirmPin}
-              onChange={(e) => setConfirmPin(e.target.value)}
-              className="w-full min-h-[44px] bg-[#051813] border border-emerald-800 rounded-xl px-3 text-xs text-white"
-            />
-          </div>
+            <LogOut className="w-3.5 h-3.5" />
+            <span>লগআউট করুন</span>
+          </button>
         </div>
 
-        <button
-          type="submit"
-          className="w-full min-h-[44px] rounded-xl bg-amber-600 hover:bg-amber-500 text-slate-950 text-xs font-bold transition shadow"
-        >
-          পিন আপডেট করুন
-        </button>
-      </form>
+        {/* Update own Supabase password */}
+        <form onSubmit={handleChangePassword} className="pt-2 border-t border-emerald-900/40 space-y-2.5">
+          <span className="text-xs font-bold text-white block">নিজের পাসওয়ার্ড পরিবর্তন করুন</span>
+
+          {passwordMessage && (
+            <div
+              className={`p-2.5 rounded-xl text-xs font-medium flex items-center gap-2 ${
+                passwordMessage.isError
+                  ? 'bg-red-950/80 text-red-300 border border-red-500/40'
+                  : 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/40'
+              }`}
+            >
+              {passwordMessage.isError ? (
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+              ) : (
+                <CheckCircle className="w-4 h-4 shrink-0" />
+              )}
+              <span>{passwordMessage.text}</span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <input
+              type="password"
+              required
+              minLength={6}
+              placeholder="নতুন পাসওয়ার্ড (কমপক্ষে ৬ অক্ষর)"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="w-full min-h-[42px] bg-[#051813] border border-emerald-800 rounded-xl px-3 text-xs text-white"
+            />
+            <input
+              type="password"
+              required
+              minLength={6}
+              placeholder="পুনরায় নতুন পাসওয়ার্ড"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="w-full min-h-[42px] bg-[#051813] border border-emerald-800 rounded-xl px-3 text-xs text-white"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={isUpdatingPassword}
+            className="w-full min-h-[40px] rounded-xl bg-amber-600 hover:bg-amber-500 text-slate-950 text-xs font-bold transition shadow disabled:opacity-60"
+          >
+            {isUpdatingPassword ? 'আপডেট হচ্ছে...' : 'পাসওয়ার্ড আপডেট করুন'}
+          </button>
+        </form>
+
+        {/* Owner Supabase Assistant Management & RLS Guide */}
+        <div className="pt-2 border-t border-emerald-900/40">
+          <button
+            type="button"
+            onClick={() => setShowOwnerGuide(!showOwnerGuide)}
+            className="w-full flex items-center justify-between text-xs font-bold text-emerald-300 hover:text-amber-300 py-1.5 transition"
+          >
+            <span>মূল মালিকের জন্য: অ্যাসিস্ট্যান্ট/অ্যাডমিন নিয়োগ ও ডিলিট গাইড</span>
+            {showOwnerGuide ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
+
+          {showOwnerGuide && (
+            <div className="mt-2 p-3 rounded-xl bg-[#04140f] border border-emerald-800/50 space-y-2.5 text-xs text-slate-300">
+              <p className="leading-relaxed">
+                ১. আপনার <strong className="text-white">Supabase Dashboard → Authentication → Users</strong> থেকে যেকোনো অ্যাসিস্ট্যান্টের জন্য <strong className="text-amber-300">Email ও Password</strong> দিয়ে ইউজার তৈরি করুন।<br />
+                ২. তাকে অ্যাডমিন ক্ষমতা দিতে নিচের SQL-টি Supabase SQL Editor-এ চালিয়ে <strong className="text-emerald-300">admin</strong> রোল দিন এবং নিরাপত্তা পলিসি (RLS) চালু করুন।<br />
+                ৩. যেকোনো সময় Supabase Dashboard থেকে ইউজারটিকে <strong className="text-red-300">Ban বা Delete</strong> করলে সাথে সাথে তার অ্যাপ এডিট ক্ষমতা বন্ধ হয়ে যাবে।
+              </p>
+
+              <div className="relative">
+                <pre className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 text-[10px] text-emerald-300 overflow-x-auto leading-relaxed font-mono">
+                  {SUPABASE_OWNER_SQL}
+                </pre>
+                <button
+                  type="button"
+                  onClick={handleCopyOwnerSql}
+                  className="mt-2 px-3 py-1.5 rounded-lg bg-emerald-800 hover:bg-emerald-700 text-white text-[11px] font-bold inline-flex items-center gap-1.5"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>{sqlCopied ? 'SQL কপি হয়েছে!' : 'SQL কোড কপি করুন'}</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* 3. Export / Import Backup JSON */}
       <div className="rounded-2xl bg-[#061e18] border border-emerald-900/60 p-4 sm:p-5 shadow space-y-3">

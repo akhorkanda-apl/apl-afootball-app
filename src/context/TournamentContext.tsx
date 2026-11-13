@@ -5,12 +5,18 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { initialCommitteeMembers, initialOrgSettings, initialTournaments } from '../data/initialData';
 import {
+  AdminUserInfo,
   APL_MAIN_ROW_ID,
   APL_STATE_TABLE,
   AplCloudState,
+  checkUserHasAdminRole,
   fetchAplCloudState,
   pushAplCloudState,
+  signInAdminWithSupabase,
+  signOutAdminFromSupabase,
   supabase,
+  updateAdminPasswordInSupabase,
+  verifyActiveAdminSession,
 } from '../lib/supabase';
 import {
   CommitteeMember,
@@ -36,6 +42,8 @@ interface TournamentContextType {
   teams: Team[];
   matches: Match[];
   isAdmin: boolean;
+  adminUser: AdminUserInfo | null;
+  isAuthChecking: boolean;
   activeLiveMatchId: string | null;
   activeLiveMatch: Match | undefined;
   useBengaliNumerals: boolean;
@@ -63,10 +71,13 @@ interface TournamentContextType {
   updateActiveTournamentSettings: (updates: Partial<Tournament>) => void;
   setUseBengaliNumerals: (enabled: boolean) => void;
 
-  // Admin Authentication
-  loginAdmin: (pin: string) => boolean;
-  logoutAdmin: () => void;
-  changeAdminPin: (currentPin: string, newPin: string) => { success: boolean; message: string };
+  // Admin Authentication (Supabase Email + Password + admin Role)
+  loginAdminWithEmail: (
+    email: string,
+    password: string
+  ) => Promise<{ success: boolean; message: string }>;
+  logoutAdmin: () => Promise<void>;
+  changeAdminPassword: (newPassword: string) => Promise<{ success: boolean; message: string }>;
 
   // Groups & Teams within Active Tournament
   addGroup: (groupName: string) => void;
@@ -123,28 +134,7 @@ const TournamentContext = createContext<TournamentContextType | null>(null);
 const ORG_STORAGE_KEY = 'apl_org_hub_v3';
 const TOURNAMENTS_STORAGE_KEY = 'apl_tournaments_v3';
 const COMMITTEE_STORAGE_KEY = 'apl_committee_v3';
-const ADMIN_AUTH_KEY = 'apl_admin_session_v3';
 const NUMERAL_PREF_KEY = 'apl_numeral_pref_v3';
-const PIN_MIGRATED_KEY = 'apl_pin_7254_migrated_v1';
-
-const BENGALI_TO_ENGLISH_DIGITS: Record<string, string> = {
-  '০': '0',
-  '১': '1',
-  '২': '2',
-  '৩': '3',
-  '৪': '4',
-  '৫': '5',
-  '৬': '6',
-  '৭': '7',
-  '৮': '8',
-  '৯': '9',
-};
-
-function normalizePinDigits(input: string): string {
-  return input
-    .trim()
-    .replace(/[০-৯]/g, (ch) => BENGALI_TO_ENGLISH_DIGITS[ch] ?? ch);
-}
 
 function normalizeOrgName(settings: OrganizationSettings): OrganizationSettings {
   const next = { ...initialOrgSettings, ...settings };
@@ -166,21 +156,13 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setLocalMutationSeq((prev) => prev + 1);
   }, []);
 
-  // Load Org Settings with automatic migration to 'আখরকান্দা দক্ষিণ পাড়া প্রিমিয়ার লিগ - APL' and PIN '7254'
+  // Load Org Settings with automatic migration to 'আখরকান্দা দক্ষিণ পাড়া প্রিমিয়ার লিগ - APL'
   const [orgSettings, setOrgSettings] = useState<OrganizationSettings>(() => {
     try {
       const stored = localStorage.getItem(ORG_STORAGE_KEY);
       if (stored) {
-        const parsed = normalizeOrgName(JSON.parse(stored));
-        if (!localStorage.getItem(PIN_MIGRATED_KEY)) {
-          if (parsed.adminPin === '1234') {
-            parsed.adminPin = '7254';
-          }
-          localStorage.setItem(PIN_MIGRATED_KEY, '1');
-        }
-        return parsed;
+        return normalizeOrgName(JSON.parse(stored));
       }
-      localStorage.setItem(PIN_MIGRATED_KEY, '1');
     } catch (e) {
       console.error('Failed to load org settings', e);
     }
@@ -209,10 +191,10 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return initialCommitteeMembers;
   });
 
-  // Admin Session
-  const [isAdmin, setIsAdmin] = useState<boolean>(() => {
-    return localStorage.getItem(ADMIN_AUTH_KEY) === 'true';
-  });
+  // Supabase Admin Auth Session (Server-verified Email + Password + admin role)
+  const [adminUser, setAdminUser] = useState<AdminUserInfo | null>(null);
+  const [isAuthChecking, setIsAuthChecking] = useState<boolean>(true);
+  const isAdmin = !!adminUser;
 
   // Numeral preference (Bengali by default)
   const [useBengaliNumerals, setUseBengaliNumerals] = useState<boolean>(() => {
@@ -237,7 +219,19 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   useEffect(() => {
     const live = activeTournament.matches.find((m) => m.status === 'live');
     setActiveLiveMatchId(live ? live.id : (activeTournament.matches[0]?.id || null));
-  }, [activeTournamentId, activeTournament.matches]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTournamentId]);
+
+  // Ensure activeLiveMatchId remains valid if a match is deleted
+  useEffect(() => {
+    if (
+      activeLiveMatchId &&
+      !activeTournament.matches.some((m) => m.id === activeLiveMatchId)
+    ) {
+      const live = activeTournament.matches.find((m) => m.status === 'live');
+      setActiveLiveMatchId(live ? live.id : (activeTournament.matches[0]?.id || null));
+    }
+  }, [activeTournament.matches, activeLiveMatchId]);
 
   // Persist Org Settings (offline fallback cache)
   useEffect(() => {
@@ -266,8 +260,67 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   }, [committeeMembers]);
 
+  // Verify Supabase Admin Session on mount, auth state changes, and window focus
   useEffect(() => {
-    localStorage.setItem(ADMIN_AUTH_KEY, isAdmin ? 'true' : 'false');
+    let isMounted = true;
+
+    const checkSession = async () => {
+      const verified = await verifyActiveAdminSession();
+      if (!isMounted) return;
+      setAdminUser(verified);
+      setIsAuthChecking(false);
+    };
+
+    checkSession();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (!isMounted) return;
+        if (event === 'SIGNED_OUT' || !session?.user) {
+          setAdminUser(null);
+          return;
+        }
+        const hasAdminRole = await checkUserHasAdminRole(session.user);
+        if (!isMounted) return;
+        if (hasAdminRole) {
+          setAdminUser({
+            id: session.user.id,
+            email: session.user.email || '',
+            role: 'admin',
+          });
+        } else {
+          await signOutAdminFromSupabase();
+          if (isMounted) setAdminUser(null);
+        }
+      }
+    );
+
+  // Re-verify live with Supabase when window regains focus (catches deleted/banned assistants)
+    const handleFocus = () => {
+      verifyActiveAdminSession().then((verified) => {
+        if (!isMounted) return;
+        setAdminUser(verified);
+      });
+    };
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      isMounted = false;
+      authListener.subscription.unsubscribe();
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, []);
+
+  // Periodically check active session against Supabase server while logged in as admin
+  useEffect(() => {
+    if (!isAdmin) return;
+    const interval = setInterval(async () => {
+      const verified = await verifyActiveAdminSession();
+      if (!verified) {
+        setAdminUser(null);
+      }
+    }, 45000);
+    return () => clearInterval(interval);
   }, [isAdmin]);
 
   useEffect(() => {
@@ -304,15 +357,18 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (remote && remote.orgSettings && Array.isArray(remote.tournaments)) {
         applyRemoteCloudState(remote);
       } else {
-        // Seed cloud state if row doesn't exist yet
-        const snapshot = latestStateRef.current;
-        await pushAplCloudState({
-          orgSettings: snapshot.orgSettings,
-          tournaments: snapshot.tournaments,
-          committeeMembers: snapshot.committeeMembers,
-          updatedAt: new Date().toISOString(),
-          clientId: clientIdRef.current,
-        });
+        // Seed cloud state only if a verified admin session is active
+        const verified = await verifyActiveAdminSession();
+        if (verified && isMounted) {
+          const snapshot = latestStateRef.current;
+          await pushAplCloudState({
+            orgSettings: snapshot.orgSettings,
+            tournaments: snapshot.tournaments,
+            committeeMembers: snapshot.committeeMembers,
+            updatedAt: new Date().toISOString(),
+            clientId: clientIdRef.current,
+          });
+        }
       }
     };
 
@@ -343,9 +399,9 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
   }, [applyRemoteCloudState]);
 
-  // Push local mutations to Supabase `apl_app_state` (debounced slightly to batch rapid updates)
+  // Push local mutations to Supabase `apl_app_state` (ONLY when verified admin is active)
   useEffect(() => {
-    if (localMutationSeq === 0) return;
+    if (localMutationSeq === 0 || !isAdmin) return;
 
     const timeout = setTimeout(() => {
       const snapshot = latestStateRef.current;
@@ -359,7 +415,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }, 200);
 
     return () => clearTimeout(timeout);
-  }, [localMutationSeq]);
+  }, [localMutationSeq, isAdmin]);
 
   // Running Timer Loop for Active Live Matches
   const hasRunningTimers = useMemo(
@@ -591,34 +647,22 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     updateTournament(activeTournamentId, updates);
   };
 
-  // Admin Auth (accepts both English '7254' and Bengali '৭২৫৪' digits)
-  const loginAdmin = (pin: string): boolean => {
-    const normalizedInput = normalizePinDigits(pin);
-    const normalizedStored = normalizePinDigits(orgSettings.adminPin);
-    if (normalizedInput && normalizedInput === normalizedStored) {
-      setIsAdmin(true);
-      return true;
+  // Supabase Admin Authentication (Email, Password & 'admin' role required)
+  const loginAdminWithEmail = async (email: string, password: string) => {
+    const res = await signInAdminWithSupabase(email, password);
+    if (res.success && res.user) {
+      setAdminUser(res.user);
     }
-    return false;
+    return { success: res.success, message: res.message };
   };
 
-  const logoutAdmin = () => {
-    setIsAdmin(false);
+  const logoutAdmin = async () => {
+    await signOutAdminFromSupabase();
+    setAdminUser(null);
   };
 
-  const changeAdminPin = (currentPin: string, newPin: string) => {
-    const normalizedCurrent = normalizePinDigits(currentPin);
-    const normalizedStored = normalizePinDigits(orgSettings.adminPin);
-    const normalizedNew = normalizePinDigits(newPin);
-
-    if (normalizedCurrent !== normalizedStored) {
-      return { success: false, message: 'বর্তমান পিন সঠিক নয়!' };
-    }
-    if (normalizedNew.length < 4) {
-      return { success: false, message: 'নতুন পিন কমপক্ষে ৪ সংখ্যার হতে হবে।' };
-    }
-    updateOrgSettings({ adminPin: normalizedNew });
-    return { success: true, message: 'অ্যাডমিন পিন সফলভাবে পরিবর্তন হয়েছে!' };
+  const changeAdminPassword = async (newPassword: string) => {
+    return updateAdminPasswordInSupabase(newPassword);
   };
 
   // Group Management inside Active Tournament
@@ -988,6 +1032,8 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         teams,
         matches,
         isAdmin,
+        adminUser,
+        isAuthChecking,
         activeLiveMatchId,
         activeLiveMatch,
         useBengaliNumerals,
@@ -1006,9 +1052,9 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         updateOrgSettings,
         updateActiveTournamentSettings,
         setUseBengaliNumerals,
-        loginAdmin,
+        loginAdminWithEmail,
         logoutAdmin,
-        changeAdminPin,
+        changeAdminPassword,
         addGroup,
         renameGroup,
         deleteGroup,

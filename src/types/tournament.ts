@@ -128,7 +128,7 @@ export interface Tournament {
 export interface OrganizationSettings {
   orgName: string;
   customLogoUrl: string;
-  adminPin: string;
+  adminPin?: string;
   activeTournamentId: string;
   enableSoundEffects?: boolean;
 }

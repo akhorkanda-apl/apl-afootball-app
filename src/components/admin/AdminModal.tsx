@@ -9,6 +9,7 @@ import {
   ShieldCheck,
   Trophy,
   UserCheck,
+  Loader2,
 } from 'lucide-react';
 import { useTournament } from '../../context/TournamentContext';
 import { AdminLogin } from './AdminLogin';
@@ -32,7 +33,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   onClose,
   initialMatchIdForLive,
 }) => {
-  const { isAdmin, logoutAdmin, activeTournament } = useTournament();
+  const { isAdmin, adminUser, isAuthChecking, logoutAdmin, activeTournament } = useTournament();
   const [activeAdminTab, setActiveAdminTab] = useState<AdminTab>(
     initialMatchIdForLive ? 'live' : 'live'
   );
@@ -56,7 +57,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                 সুপার অ্যাডমিন কন্ট্রোল প্যানেল
               </h2>
               <p className="text-[10px] text-amber-400 font-semibold truncate">
-                সক্রিয় টুর্নামেন্ট: {activeTournament.name}
+                {isAdmin && adminUser?.email
+                  ? `অ্যাডমিন: ${adminUser.email} · ${activeTournament.name}`
+                  : `সক্রিয় টুর্নামেন্ট: ${activeTournament.name}`}
               </p>
             </div>
           </div>
@@ -83,7 +86,12 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         </div>
 
         {/* Content Body */}
-        {!isAdmin ? (
+        {isAuthChecking ? (
+          <div className="p-8 flex-1 flex flex-col items-center justify-center gap-2 text-slate-300 text-xs">
+            <Loader2 className="w-6 h-6 animate-spin text-emerald-400" />
+            <span>অ্যাডমিন সেশন যাচাই করা হচ্ছে...</span>
+          </div>
+        ) : !isAdmin ? (
           <div className="p-4 flex-1 flex items-center justify-center">
             <AdminLogin onSuccess={() => {}} onCancel={onClose} />
           </div>
