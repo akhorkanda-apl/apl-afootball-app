@@ -5,11 +5,11 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { initialCommitteeMembers, initialOrgSettings, initialTournaments } from '../data/initialData';
 import {
+  AdminLoginErrorCode,
   AdminUserInfo,
   APL_MAIN_ROW_ID,
   APL_STATE_TABLE,
   AplCloudState,
-  checkUserHasAdminRole,
   fetchAplCloudState,
   pushAplCloudState,
   signInAdminWithSupabase,
@@ -75,7 +75,7 @@ interface TournamentContextType {
   loginAdminWithEmail: (
     email: string,
     password: string
-  ) => Promise<{ success: boolean; message: string }>;
+  ) => Promise<{ success: boolean; message: string; errorCode?: AdminLoginErrorCode }>;
   logoutAdmin: () => Promise<void>;
   changeAdminPassword: (newPassword: string) => Promise<{ success: boolean; message: string }>;
 
@@ -266,38 +266,40 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   useEffect(() => {
     let isMounted = true;
 
+    const safetyTimeout = setTimeout(() => {
+      if (isMounted) setIsAuthChecking(false);
+    }, 3000);
+
     const checkSession = async () => {
-      const verified = await verifyActiveAdminSession();
-      if (!isMounted) return;
-      setAdminUser(verified);
-      setIsAuthChecking(false);
+      try {
+        const verified = await verifyActiveAdminSession();
+        if (!isMounted) return;
+        setAdminUser(verified);
+      } finally {
+        clearTimeout(safetyTimeout);
+        if (isMounted) setIsAuthChecking(false);
+      }
     };
 
     checkSession();
 
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (!isMounted) return;
-        if (event === 'SIGNED_OUT' || !session?.user) {
-          setAdminUser(null);
-          return;
-        }
-        const hasAdminRole = await checkUserHasAdminRole(session.user);
-        if (!isMounted) return;
-        if (hasAdminRole) {
-          setAdminUser({
-            id: session.user.id,
-            email: session.user.email || '',
-            role: 'admin',
-          });
-        } else {
-          await signOutAdminFromSupabase();
-          if (isMounted) setAdminUser(null);
-        }
+    // IMPORTANT: Keep onAuthStateChange synchronous — calling supabase.* inside it can deadlock auth locks
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!isMounted) return;
+      if (event === 'SIGNED_OUT' || !session?.user) {
+        setAdminUser(null);
+        return;
       }
-    );
 
-  // Re-verify live with Supabase when window regains focus (catches deleted/banned assistants)
+      const user = session.user;
+      setAdminUser({
+        id: user.id,
+        email: user.email || '',
+        role: String(user.app_metadata?.role || 'admin'),
+      });
+    });
+
+    // Re-verify live with Supabase when window regains focus (catches deleted/banned assistants)
     const handleFocus = () => {
       verifyActiveAdminSession().then((verified) => {
         if (!isMounted) return;
@@ -308,6 +310,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     return () => {
       isMounted = false;
+      clearTimeout(safetyTimeout);
       authListener.subscription.unsubscribe();
       window.removeEventListener('focus', handleFocus);
     };
@@ -677,20 +680,22 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const res = await signInAdminWithSupabase(email, password);
     if (res.success && res.user) {
       setAdminUser(res.user);
-      // Seed cloud state if `main_state` doesn't exist yet in Supabase
-      const remote = await fetchAplCloudState();
-      if (!remote) {
-        const snapshot = latestStateRef.current;
-        await pushAplCloudState({
-          orgSettings: snapshot.orgSettings,
-          tournaments: snapshot.tournaments,
-          committeeMembers: snapshot.committeeMembers,
-          updatedAt: new Date().toISOString(),
-          clientId: clientIdRef.current,
-        });
-      }
+      // Seed cloud state in background if `main_state` doesn't exist yet in Supabase
+      void (async () => {
+        const remote = await fetchAplCloudState();
+        if (!remote) {
+          const snapshot = latestStateRef.current;
+          await pushAplCloudState({
+            orgSettings: snapshot.orgSettings,
+            tournaments: snapshot.tournaments,
+            committeeMembers: snapshot.committeeMembers,
+            updatedAt: new Date().toISOString(),
+            clientId: clientIdRef.current,
+          });
+        }
+      })();
     }
-    return { success: res.success, message: res.message };
+    return { success: res.success, message: res.message, errorCode: res.errorCode };
   };
 
   const logoutAdmin = async () => {

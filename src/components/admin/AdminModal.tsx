@@ -92,7 +92,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
             <span>অ্যাডমিন সেশন যাচাই করা হচ্ছে...</span>
           </div>
         ) : !isAdmin ? (
-          <div className="p-4 flex-1 flex items-center justify-center">
+          <div className="p-3 sm:p-4 flex-1 overflow-y-auto flex items-start sm:items-center justify-center">
             <AdminLogin onSuccess={() => {}} onCancel={onClose} />
           </div>
         ) : (

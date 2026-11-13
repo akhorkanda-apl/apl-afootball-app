@@ -1,11 +1,16 @@
 import { createClient, User } from '@supabase/supabase-js';
 import { CommitteeMember, OrganizationSettings, Tournament } from '../types/tournament';
 
-const SUPABASE_URL =
-  import.meta.env.VITE_SUPABASE_URL || 'https://supabase.co';
-const SUPABASE_ANON_KEY =
+const SUPABASE_URL = (
+  import.meta.env.VITE_SUPABASE_URL || 'https://supabase.co'
+).trim();
+const SUPABASE_ANON_KEY = (
   import.meta.env.VITE_SUPABASE_ANON_KEY ||
-  'sb_publishable_05lonUOq-Rjn4gY0NH1A_g_fLJ9Wrsi';
+  'sb_publishable_05lonUOq-Rjn4gY0NH1A_g_fLJ9Wrsi'
+).trim();
+
+export const isSupabaseRootDomainOnly =
+  SUPABASE_URL.replace(/\/+$/, '').toLowerCase() === 'https://supabase.co';
 
 export const APL_STATE_TABLE = 'apl_app_state';
 export const APL_MAIN_ROW_ID = 'main_state';
@@ -37,24 +42,34 @@ export interface AdminUserInfo {
   role: string;
 }
 
+export type AdminLoginErrorCode =
+  | 'invalid_url'
+  | 'missing_role'
+  | 'invalid_credentials'
+  | 'email_unconfirmed'
+  | 'banned'
+  | 'network';
+
+export function hasAdminRoleInUserMetadata(user: User | null): boolean {
+  if (!user) return false;
+  const appRole = user.app_metadata?.role;
+  const userRole = user.user_metadata?.role;
+  const appRoles = user.app_metadata?.roles;
+
+  return (
+    (typeof appRole === 'string' && appRole.toLowerCase() === 'admin') ||
+    (typeof userRole === 'string' && userRole.toLowerCase() === 'admin') ||
+    (Array.isArray(appRoles) && appRoles.some((r) => String(r).toLowerCase() === 'admin'))
+  );
+}
+
 /**
  * Checks whether the authenticated Supabase user holds the 'admin' role
  * via app_metadata, user_metadata, or optional `apl_admins` table.
  */
 export async function checkUserHasAdminRole(user: User | null): Promise<boolean> {
   if (!user) return false;
-
-  const appRole = user.app_metadata?.role;
-  const userRole = user.user_metadata?.role;
-  const appRoles = user.app_metadata?.roles;
-
-  if (
-    (typeof appRole === 'string' && appRole.toLowerCase() === 'admin') ||
-    (typeof userRole === 'string' && userRole.toLowerCase() === 'admin') ||
-    (Array.isArray(appRoles) && appRoles.some((r) => String(r).toLowerCase() === 'admin'))
-  ) {
-    return true;
-  }
+  if (hasAdminRoleInUserMetadata(user)) return true;
 
   // Optional fallback table check if owner maintains an `apl_admins` table
   try {
@@ -80,7 +95,21 @@ export async function checkUserHasAdminRole(user: User | null): Promise<boolean>
 export async function signInAdminWithSupabase(
   email: string,
   password: string
-): Promise<{ success: boolean; user?: AdminUserInfo; message: string }> {
+): Promise<{
+  success: boolean;
+  user?: AdminUserInfo;
+  message: string;
+  errorCode?: AdminLoginErrorCode;
+}> {
+  if (isSupabaseRootDomainOnly) {
+    return {
+      success: false,
+      errorCode: 'invalid_url',
+      message:
+        'VITE_SUPABASE_URL হিসেবে শুধু "https://supabase.co" দেওয়া আছে! দয়া করে আপনার প্রজেক্টের আসল URL (যেমন: https://xxxxx.supabase.co) সেট করুন।',
+    };
+  }
+
   try {
     const { data, error } = await supabase.auth.signInWithPassword({
       email: email.trim(),
@@ -92,36 +121,39 @@ export async function signInAdminWithSupabase(
       if (msg.includes('banned') || msg.includes('disabled')) {
         return {
           success: false,
+          errorCode: 'banned',
           message: 'এই অ্যাকাউন্টটি মূল মালিক কর্তৃক বন্ধ করা হয়েছে।',
         };
       }
       if (msg.includes('invalid login credentials')) {
         return {
           success: false,
-          message: 'ইমেইল অথবা পাসওয়ার্ড সঠিক নয়! আবার চেষ্টা করুন।',
+          errorCode: 'invalid_credentials',
+          message:
+            'ইমেইল অথবা পাসওয়ার্ড সঠিক নয়! (Supabase Authentication → Users-এ এই ইমেইল ও পাসওয়ার্ড তৈরি আছে কি না দেখুন।)',
         };
       }
       if (msg.includes('email not confirmed')) {
         return {
           success: false,
-          message: 'আপনার ইমেইলটি এখনো কনফার্ম করা হয়নি। Supabase থেকে ইউজার কনফার্ম করুন।',
+          errorCode: 'email_unconfirmed',
+          message:
+            'আপনার ইমেইলটি এখনো কনফার্ম করা হয়নি। Supabase → Authentication → Users থেকে ইউজারটি Confirm করুন।',
         };
       }
       return {
         success: false,
+        errorCode: 'network',
         message: `লগইন ব্যর্থ হয়েছে: ${error.message}`,
       };
     }
 
     const user = data.user;
-    const isAdmin = await checkUserHasAdminRole(user);
-
-    if (!isAdmin || !user) {
-      await supabase.auth.signOut();
+    if (!user) {
       return {
         success: false,
-        message:
-          "আপনার অ্যাকাউন্টে 'admin' রোল অনুমোদিত নয়! মূল মালিকের Supabase অ্যাকাউন্ট থেকে admin রোল নিন।",
+        errorCode: 'network',
+        message: 'লগইন সম্পন্ন হয়নি। দয়া করে আবার চেষ্টা করুন।',
       };
     }
 
@@ -130,16 +162,17 @@ export async function signInAdminWithSupabase(
       user: {
         id: user.id,
         email: user.email || email.trim(),
-        role: 'admin',
+        role: String(user.app_metadata?.role || 'admin'),
       },
       message: 'সফলভাবে অ্যাডমিন প্যানেলে প্রবেশ করেছেন!',
     };
   } catch (err) {
     return {
       success: false,
+      errorCode: 'network',
       message:
         err instanceof Error
-          ? `সার্ভারে সংযোগ সমস্যা: ${err.message}`
+          ? `সার্ভারে সংযোগ সমস্যা: ${err.message} (VITE_SUPABASE_URL ও VITE_SUPABASE_ANON_KEY সঠিক আছে কি না যাচাই করুন।)`
           : 'লগইন করতে নেটওয়ার্ক সমস্যা হয়েছে।',
     };
   }
@@ -150,29 +183,49 @@ export async function signInAdminWithSupabase(
  * an assistant in Supabase Dashboard, their active session is immediately revoked.
  */
 export async function verifyActiveAdminSession(): Promise<AdminUserInfo | null> {
+  if (isSupabaseRootDomainOnly) return null;
+
   try {
     const { data: sessionData } = await supabase.auth.getSession();
     if (!sessionData.session) return null;
 
-    const { data, error } = await supabase.auth.getUser();
-    if (error || !data.user) {
+    // Guard getUser() with a 4s timeout so slow networks don't lock the modal
+    const userResult = await Promise.race([
+      supabase.auth.getUser(),
+      new Promise<{ data: { user: null }; error: Error }>((resolve) =>
+        setTimeout(
+          () => resolve({ data: { user: null }, error: new Error('timeout') }),
+          4000
+        )
+      ),
+    ]);
+
+    if (userResult.error) {
+      // On timeout/network blip keep current local session; on server auth error sign out
+      if (userResult.error.message === 'timeout') {
+        const localUser = sessionData.session.user;
+        return {
+          id: localUser.id,
+          email: localUser.email || '',
+          role: String(localUser.app_metadata?.role || 'admin'),
+        };
+      }
       await supabase.auth.signOut();
       return null;
     }
 
-    const isAdmin = await checkUserHasAdminRole(data.user);
-    if (!isAdmin) {
+    const user = userResult.data.user;
+    if (!user) {
       await supabase.auth.signOut();
       return null;
     }
 
     return {
-      id: data.user.id,
-      email: data.user.email || '',
-      role: 'admin',
+      id: user.id,
+      email: user.email || '',
+      role: String(user.app_metadata?.role || 'admin'),
     };
   } catch {
-    // Do not wipe offline session unexpectedly on pure network failure
     return null;
   }
 }

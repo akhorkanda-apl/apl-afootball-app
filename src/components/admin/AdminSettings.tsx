@@ -27,29 +27,31 @@ import { AplLogo } from '../AplLogo';
 import { Sponsor } from '../../types/tournament';
 import { compressImageFile } from '../../utils/image';
 
-const SUPABASE_OWNER_SQL = `-- ১. আপনার অ্যাসিস্ট্যান্ট/অ্যাডমিনকে 'admin' রোল দিতে (Supabase SQL Editor-এ চালান):
-UPDATE auth.users
-SET raw_app_meta_data = COALESCE(raw_app_meta_data, '{}'::jsonb) || '{"role": "admin"}'::jsonb
-WHERE email = 'assistant@example.com';
-
--- ২. পাবলিক শুধু পড়তে পারবে (A to Z), আর শুধুমাত্র 'admin' রোল এডিট করতে পারবে:
+const SUPABASE_OWNER_SQL = `-- ১ বার চালালেই হবে: মালিক Supabase Dashboard থেকে যাদের Email ও Password তৈরি করবেন,
+-- তারা কোনো বাধা ছাড়াই সরাসরি লগইন ও স্কোর সেভ করতে পারবেন:
 ALTER TABLE public.apl_app_state ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Public read access" ON public.apl_app_state;
+DROP POLICY IF EXISTS "Only admin role can insert" ON public.apl_app_state;
+DROP POLICY IF EXISTS "Only admin role can update" ON public.apl_app_state;
+DROP POLICY IF EXISTS "Authenticated admins can insert" ON public.apl_app_state;
+DROP POLICY IF EXISTS "Authenticated admins can update" ON public.apl_app_state;
 
 CREATE POLICY "Public read access"
 ON public.apl_app_state FOR SELECT
 TO anon, authenticated
 USING (true);
 
-CREATE POLICY "Only admin role can insert"
+CREATE POLICY "Authenticated admins can insert"
 ON public.apl_app_state FOR INSERT
 TO authenticated
-WITH CHECK ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
+WITH CHECK (true);
 
-CREATE POLICY "Only admin role can update"
+CREATE POLICY "Authenticated admins can update"
 ON public.apl_app_state FOR UPDATE
 TO authenticated
-USING ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin')
-WITH CHECK ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');`;
+USING (true)
+WITH CHECK (true);`;
 
 export const AdminSettings: React.FC = () => {
   const {
@@ -691,8 +693,8 @@ export const AdminSettings: React.FC = () => {
           {showOwnerGuide && (
             <div className="mt-2 p-3 rounded-xl bg-[#04140f] border border-emerald-800/50 space-y-2.5 text-xs text-slate-300">
               <p className="leading-relaxed">
-                ১. আপনার <strong className="text-white">Supabase Dashboard → Authentication → Users</strong> থেকে যেকোনো অ্যাসিস্ট্যান্টের জন্য <strong className="text-amber-300">Email ও Password</strong> দিয়ে ইউজার তৈরি করুন।<br />
-                ২. তাকে অ্যাডমিন ক্ষমতা দিতে নিচের SQL-টি Supabase SQL Editor-এ চালিয়ে <strong className="text-emerald-300">admin</strong> রোল দিন এবং নিরাপত্তা পলিসি (RLS) চালু করুন।<br />
+                ১. আপনার <strong className="text-white">Supabase Dashboard → Authentication → Users → Add user</strong> থেকে যাকে ইচ্ছা <strong className="text-amber-300">Email ও Password</strong> তৈরি করে দিন (<strong className="text-emerald-300">Auto Confirm User</strong> চালু রাখুন)—তারা কোনো বাধা ছাড়াই সরাসরি লগইন করতে পারবে।<br />
+                ২. বাইরের কেউ যেন অ্যাকাউন্ট না বানাতে পারে, সেজন্য Supabase <strong className="text-white">Authentication → Sign In / Providers → Allow new users to sign up</strong> বন্ধ রাখুন এবং নিচের SQL-টি <strong className="text-emerald-300">১ বার</strong> চালিয়ে নিন।<br />
                 ৩. যেকোনো সময় Supabase Dashboard থেকে ইউজারটিকে <strong className="text-red-300">Ban বা Delete</strong> করলে সাথে সাথে তার অ্যাপ এডিট ক্ষমতা বন্ধ হয়ে যাবে।
               </p>
 

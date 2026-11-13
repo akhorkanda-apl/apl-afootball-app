@@ -8,8 +8,10 @@ import {
   EyeOff,
   ShieldCheck,
   Loader2,
+  AlertTriangle,
 } from 'lucide-react';
 import { useTournament } from '../../context/TournamentContext';
+import { isSupabaseRootDomainOnly } from '../../lib/supabase';
 
 interface AdminLoginProps {
   onSuccess: () => void;
@@ -53,16 +55,28 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onSuccess, onCancel }) =
   }
 
   return (
-    <div className="p-5 sm:p-6 text-slate-100 max-w-sm w-full mx-auto">
-      <div className="text-center mb-5">
+    <div className="p-4 sm:p-6 text-slate-100 max-w-sm w-full mx-auto">
+      <div className="text-center mb-4">
         <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center text-white mx-auto mb-3 shadow-lg border border-emerald-400/40">
           <ShieldCheck className="w-7 h-7 text-amber-300" />
         </div>
         <h3 className="text-lg font-bold text-white">অ্যাডমিন প্রবেশদ্বার</h3>
         <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-          মূল মালিক কর্তৃক অনুমোদিত ইমেইল, পাসওয়ার্ড ও <strong className="text-amber-300">admin</strong> রোল দিয়ে প্রবেশ করুন
+          মূল মালিক কর্তৃক প্রদত্ত <strong className="text-amber-300">ইমেইল ও পাসওয়ার্ড</strong> দিয়ে সরাসরি প্রবেশ করুন
         </p>
       </div>
+
+      {isSupabaseRootDomainOnly && (
+        <div className="mb-3.5 p-3 rounded-xl bg-amber-950/70 border border-amber-500/50 text-amber-200 text-[11px] leading-relaxed flex items-start gap-2">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
+          <div>
+            <strong>Supabase URL কনফিগার করা হয়নি!</strong>
+            <p className="mt-0.5 text-amber-300/90">
+              <code className="text-white">VITE_SUPABASE_URL</code>-এ শুধু <code className="text-white">https://supabase.co</code> না দিয়ে আপনার প্রজেক্টের আসল URL (<code className="text-white">https://xxxxx.supabase.co</code>) সেট করুন।
+            </p>
+          </div>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-3.5">
         {/* Email Field */}
@@ -118,8 +132,8 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onSuccess, onCancel }) =
         </div>
 
         {error && (
-          <div className="flex items-start gap-2 p-2.5 rounded-xl bg-red-950/80 border border-red-500/40 text-red-300 text-xs leading-relaxed">
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          <div className="p-3 rounded-xl bg-red-950/85 border border-red-500/40 text-red-200 text-xs leading-relaxed flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-400" />
             <span>{error}</span>
           </div>
         )}
@@ -155,7 +169,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onSuccess, onCancel }) =
       </form>
 
       <p className="text-[11px] text-slate-500 text-center mt-4 leading-relaxed">
-        নিরাপত্তা: মূল মালিক Supabase অ্যাকাউন্ট থেকে যেকোনো সময় অ্যাডমিন এক্সেস চালু বা বন্ধ করতে পারবেন।
+        নিরাপত্তা: মূল মালিক Supabase অ্যাকাউন্ট থেকে যেকোনো সময় অ্যাডমিন অ্যাকাউন্ট তৈরি, বন্ধ বা ডিলিট করতে পারবেন।
       </p>
     </div>
   );
