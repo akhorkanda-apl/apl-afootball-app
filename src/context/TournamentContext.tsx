@@ -151,8 +151,10 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const clientIdRef = useRef<string>(
     `apl-client-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
   );
+  const lastLocalMutationAtRef = useRef<number>(0);
   const [localMutationSeq, setLocalMutationSeq] = useState(0);
   const markLocalMutation = useCallback(() => {
+    lastLocalMutationAtRef.current = Date.now();
     setLocalMutationSeq((prev) => prev + 1);
   }, []);
 
@@ -334,6 +336,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const applyRemoteCloudState = useCallback((remote: AplCloudState) => {
     if (!remote || typeof remote !== 'object') return;
     if (remote.clientId && remote.clientId === clientIdRef.current) return;
+    if (Date.now() - lastLocalMutationAtRef.current < 3000) return;
 
     if (remote.orgSettings) {
       setOrgSettings(normalizeOrgName(remote.orgSettings));
@@ -346,18 +349,17 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   }, []);
 
-  // Initial Supabase Fetch & Realtime Subscription on `apl_app_state` (id = 'main_state')
+  // Initial Supabase Fetch, Realtime Subscription, & Wake/Fallback Sync on `apl_app_state`
   useEffect(() => {
     let isMounted = true;
 
-    const initCloudSync = async () => {
+    const pullLatestFromCloud = async (allowAdminSeed: boolean) => {
       const remote = await fetchAplCloudState();
       if (!isMounted) return;
 
       if (remote && remote.orgSettings && Array.isArray(remote.tournaments)) {
         applyRemoteCloudState(remote);
-      } else {
-        // Seed cloud state only if a verified admin session is active
+      } else if (allowAdminSeed) {
         const verified = await verifyActiveAdminSession();
         if (verified && isMounted) {
           const snapshot = latestStateRef.current;
@@ -372,7 +374,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
     };
 
-    initCloudSync();
+    pullLatestFromCloud(true);
 
     const channel = supabase
       .channel('apl-app-state-realtime')
@@ -391,10 +393,33 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          pullLatestFromCloud(false);
+        }
+      });
+
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible') {
+        pullLatestFromCloud(false);
+      }
+    };
+
+    window.addEventListener('focus', handleVisibilityOrFocus);
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+
+    // Lightweight fallback sync every 12s while page is visible (ensures live updates even if WS drops)
+    const fallbackPoll = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        pullLatestFromCloud(false);
+      }
+    }, 12000);
 
     return () => {
       isMounted = false;
+      clearInterval(fallbackPoll);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
       supabase.removeChannel(channel);
     };
   }, [applyRemoteCloudState]);
@@ -652,6 +677,18 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const res = await signInAdminWithSupabase(email, password);
     if (res.success && res.user) {
       setAdminUser(res.user);
+      // Seed cloud state if `main_state` doesn't exist yet in Supabase
+      const remote = await fetchAplCloudState();
+      if (!remote) {
+        const snapshot = latestStateRef.current;
+        await pushAplCloudState({
+          orgSettings: snapshot.orgSettings,
+          tournaments: snapshot.tournaments,
+          committeeMembers: snapshot.committeeMembers,
+          updatedAt: new Date().toISOString(),
+          clientId: clientIdRef.current,
+        });
+      }
     }
     return { success: res.success, message: res.message };
   };
